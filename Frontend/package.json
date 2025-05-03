@@ -1,0 +1,39 @@
+{
+  "name": "vue-dash",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@iconify-json/heroicons": "^1.2.1",
+    "@nuxt/ui": "^2.19.2",
+    "@pinia/nuxt": "^0.11.0",
+    "chart.js": "^4.4.6",
+    "date-fns": "^4.1.0",
+    "nuxt": "^3.14.159",
+    "pinia": "^3.0.2",
+    "tailwind-scrollbar": "^2.1.0",
+    "tailwind-scrollbar-hide": "^2.0.0",
+    "v-calendar": "^3.1.2",
+    "vue": "latest",
+    "vue-chartjs": "^5.3.2",
+    "vue-router": "latest",
+    "zod": "^3.23.8"
+  },
+  "packageManager": "pnpm@9.12.3+sha512.cce0f9de9c5a7c95bef944169cc5dfe8741abfb145078c0d508b868056848a87c81e626246cb60967cbd7fd29a6c062ef73ff840d96b3c86c40ac92cf4a813ee",
+  "devDependencies": {
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.14"
+  },
+  "version": "1.0.0",
+  "description": "- **Frontend Framework**: Vue.js 3 (Composition API)\r - **Meta Framework**: Nuxt.js 3\r - **Styling**: Tailwind CSS\r - **UI Component Library**: NextUI\r - **Package Manager**: pnpm",
+  "main": "index.js",
+  "author": "",
+  "license": "ISC"
+}
