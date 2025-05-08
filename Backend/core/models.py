@@ -18,10 +18,28 @@ class User(AbstractUser):
     boutique = models.ForeignKey(Boutique, on_delete=models.SET_NULL, null=True, blank=True)
 
 class Produit(models.Model):
+    choice = (
+        ('telephone', 'Telephone'),
+        ('ordinateur', 'Ordinateur'),
+        ('accessoire', 'Accessoire'),
+        ('ecran', 'Ecran'),
+        ('imprimante', 'Imprimante'),
+        ('tablette', 'Tablette'),
+        ('casque', 'Casque'),
+        ('clavier', 'Clavier'),
+        ('souris', 'Souris'),
+        ('modem', 'Modem'),
+        ('disquedur', 'Disque dur'),
+        ('cleusb', 'Cle USB'),
+        ('autre', 'Autre'),
+    )
+    reference = models.CharField(max_length=100, blank=True)
+    category = models.CharField(max_length=20, choices=choice,default='ordinateur')
     nom = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     quantite = models.IntegerField()
     boutique = models.ForeignKey(Boutique, on_delete=models.CASCADE)
+    
     actif = models.BooleanField(default=True)
 
 class PrixProduit(models.Model):
