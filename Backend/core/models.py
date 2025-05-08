@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
+from django.utils.timezone import now  # Import this at the top
 
 class Boutique(models.Model):
     ville = models.CharField(max_length=100)
@@ -55,9 +56,18 @@ class PrixProduit(models.Model):
         return self.prix_vente_yen * self.taux_fcfa
 
 class Partenaire(models.Model):
+    choiceStatut = (
+        ('encours','En Cours'),
+        ('paye','Payé'),
+    )
+    
     nom = models.CharField(max_length=100)
-    type = models.CharField(max_length=50)  # revendeur, grossiste...
-    boutique = models.ForeignKey(Boutique, on_delete=models.CASCADE)
+    prenom =  models.CharField(max_length=100, default='')
+    telephone = models.CharField(max_length=20,default=0)
+    statut = models.CharField(max_length=20, choices=choiceStatut,default='encours')
+    boutique = models.BooleanField(default=True)
+    localisation = models.CharField(max_length=100, default='Bafoussam')
+    dateadhesion = models.DateTimeField(default=now)
 
 class Facture(models.Model):
     TYPES = (

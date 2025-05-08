@@ -77,19 +77,41 @@ const columns = [
 import { ref } from "vue";
 import type { Partenaire } from "~/types";
 
+const { data, error } = useApi('http://127.0.0.1:8000/api/partenaires/', {
+  method: 'GET',
+  server: false
+});
+
+if (error.value) {
+  console.error("Erreur API :", error.value);
+}
+
+const partenaires = Array.isArray(data.value)
+  ? data.value.map(p => ({
+    id: p.id,
+    nomPartenaire: p.nom,
+    prenomPartenaire: p.prenom,
+    telephone: p.telephone,
+    status: p.statut,
+    boutique: p.boutique ? true : false,
+    localisationBoutique: p.localisation,
+    dateAdhesion: p.dateadhesion,
+  }))
+  : [];
+
 // Liste des partenaires
-const partenaires = ref<Partenaire[]>([
-  {
-    id: "1",
-    nomPartenaire: "Doe",
-    prenomPartenaire: "John",
-    telephone: 123456789,
-    status: "payé",
-    boutique: true,
-    localisationBoutique: "Douala",
-    dateAdhesion: "2024-03-12",
-  },
-]);
+// const partenaires = ref<Partenaire[]>([
+//   {
+//     id: "1",
+//     nomPartenaire: "Doe",
+//     prenomPartenaire: "John",
+//     telephone: 123456789,
+//     status: "payé",
+//     boutique: true,
+//     localisationBoutique: "Douala",
+//     dateAdhesion: "2024-03-12",
+//   },
+// ]);
 
 // État pour afficher/masquer la modale d'ajout
 const showModal = ref(false);
@@ -106,7 +128,7 @@ const nouveauPartenaire = ref<Partenaire>({
   nomPartenaire: "",
   prenomPartenaire: "",
   telephone: 0,
-  status: "payé",
+  status: "paye",
   boutique: false,
   localisationBoutique: "",
   dateAdhesion: new Date().toISOString().split("T")[0],
@@ -114,17 +136,30 @@ const nouveauPartenaire = ref<Partenaire>({
 
 // Fonction pour ajouter un partenaire
 const ajouterPartenaire = () => {
-  nouveauPartenaire.value.id = String(partenaires.value.length + 1);
-  partenaires.value.push({ ...nouveauPartenaire.value });
+  nouveauPartenaire.value.id = String(partenaires.length + 1);
+  // partenaires.push({ ...nouveauPartenaire.value });
+  const { data, error } = useApi('http://127.0.0.1:8000/api/partenaires/', {
+    method: 'POST',
+    body: {
+      nom: nouveauPartenaire.value.nomPartenaire,
+      prenom: nouveauPartenaire.value.prenomPartenaire,
+      telephone: nouveauPartenaire.value.telephone,
+      localisation: nouveauPartenaire.value.localisationBoutique,
+      statut: nouveauPartenaire.value.status,
+      dateadhesion: nouveauPartenaire.value.dateAdhesion,
+      boutique: nouveauPartenaire.value.boutique,
+    },
+    server: false
+  });
   nouveauPartenaire.value = {
     id: "",
     nomPartenaire: "",
     prenomPartenaire: "",
     telephone: 0,
-    status: "payé",
+    status: "paye",
     boutique: false,
     localisationBoutique: "",
-    dateAdhesion: new Date().toISOString().split("T")[0],
+    dateAdhesion: new Date().toISOString(),
   };
   showModal.value = false;
 };
@@ -138,9 +173,9 @@ const ouvrirModaleModification = (partenaire: Partenaire) => {
 // Fonction pour enregistrer les modifications
 const enregistrerModifications = () => {
   if (partenaireToEdit.value) { // Vérifier que partenaireToEdit n'est pas null
-    const index = partenaires.value.findIndex((p) => p.id === partenaireToEdit.value?.id);
+    const index = partenaires.findIndex((p) => p.id === partenaireToEdit.value?.id);
     if (index !== -1) {
-      partenaires.value[index] = { ...partenaireToEdit.value }; // Mettre à jour le partenaire
+      partenaires[index] = { ...partenaireToEdit.value }; // Mettre à jour le partenaire
     }
     showEditModal.value = false; // Fermer la modale
   }
@@ -180,14 +215,11 @@ const columns = [
 
         <!-- Colonne personnalisée pour "Statut" -->
         <template #status-data="{ row }">
-          <span
-            class="px-2 py-1 rounded-lg text-white text-sm font-medium"
-            :class="{
-              'bg-green-500': row.status === 'payé',
-              'bg-yellow-500': row.status === 'En cours de payement',
-              'bg-red-500': row.status !== 'payé' && row.status !== 'En cours de payement',
-            }"
-          >
+          <span class="px-2 py-1 rounded-lg text-white text-sm font-medium" :class="{
+            'bg-green-500': row.status === 'paye',
+            'bg-yellow-500': row.status === 'En cours de payement',
+            'bg-red-500': row.status !== 'paye' && row.status !== 'En cours de payement',
+          }">
             {{ row.status }}
           </span>
         </template>
@@ -203,11 +235,16 @@ const columns = [
     <UModal v-model="showModal">
       <div class="p-5">
         <h2 class="text-lg font-bold mb-4 text-blue-400">Ajouter un Partenaire</h2>
-        <UInput color="blue" variant="outline" v-model="nouveauPartenaire.nomPartenaire" placeholder="Nom" class="mb-2" />
-        <UInput color="blue" variant="outline" v-model="nouveauPartenaire.prenomPartenaire" placeholder="Prénom" class="mb-2" />
-        <UInput color="blue" variant="outline" v-model="nouveauPartenaire.telephone" placeholder="Téléphone" class="mb-2" />
-        <UInput color="blue" variant="outline" v-model="nouveauPartenaire.localisationBoutique" placeholder="Localisation Boutique" class="mb-2" />
-        <UCheckbox color="blue" variant="outline" v-model="nouveauPartenaire.boutique" label="Possède une boutique ?" class="mb-2" />
+        <UInput color="blue" variant="outline" v-model="nouveauPartenaire.nomPartenaire" placeholder="Nom"
+          class="mb-2" />
+        <UInput color="blue" variant="outline" v-model="nouveauPartenaire.prenomPartenaire" placeholder="Prénom"
+          class="mb-2" />
+        <UInput color="blue" variant="outline" v-model="nouveauPartenaire.telephone" placeholder="Téléphone"
+          class="mb-2" />
+        <UInput color="blue" variant="outline" v-model="nouveauPartenaire.localisationBoutique"
+          placeholder="Localisation Boutique" class="mb-2" />
+        <UCheckbox color="blue" variant="outline" v-model="nouveauPartenaire.boutique" label="Possède une boutique ?"
+          class="mb-2" />
         <UButton color="blue" @click="ajouterPartenaire">Ajouter</UButton>
         <UButton color="gray" variant="outline" class="ml-2" @click="showModal = false">Annuler</UButton>
       </div>
@@ -217,11 +254,16 @@ const columns = [
     <UModal v-model="showEditModal">
       <div class="p-5" v-if="partenaireToEdit">
         <h2 class="text-lg font-bold mb-4 text-blue-400">Modifier un Partenaire</h2>
-        <UInput color="blue" variant="outline" v-model="partenaireToEdit.nomPartenaire" placeholder="Nom" class="mb-2" />
-        <UInput color="blue" variant="outline" v-model="partenaireToEdit.prenomPartenaire" placeholder="Prénom" class="mb-2" />
-        <UInput color="blue" variant="outline" v-model="partenaireToEdit.telephone" placeholder="Téléphone" class="mb-2" />
-        <UInput color="blue" variant="outline" v-model="partenaireToEdit.localisationBoutique" placeholder="Localisation Boutique" class="mb-2" />
-        <UCheckbox color="blue" variant="outline" v-model="partenaireToEdit.boutique" label="Possède une boutique ?" class="mb-2" />
+        <UInput color="blue" variant="outline" v-model="partenaireToEdit.nomPartenaire" placeholder="Nom"
+          class="mb-2" />
+        <UInput color="blue" variant="outline" v-model="partenaireToEdit.prenomPartenaire" placeholder="Prénom"
+          class="mb-2" />
+        <UInput color="blue" variant="outline" v-model="partenaireToEdit.telephone" placeholder="Téléphone"
+          class="mb-2" />
+        <UInput color="blue" variant="outline" v-model="partenaireToEdit.localisationBoutique"
+          placeholder="Localisation Boutique" class="mb-2" />
+        <UCheckbox color="blue" variant="outline" v-model="partenaireToEdit.boutique" label="Possède une boutique ?"
+          class="mb-2" />
         <UButton color="blue" @click="enregistrerModifications">Enregistrer</UButton>
         <UButton color="gray" variant="outline" class="ml-2" @click="showEditModal = false">Annuler</UButton>
       </div>
