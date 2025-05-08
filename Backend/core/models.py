@@ -38,6 +38,8 @@ class Produit(models.Model):
     nom = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     quantite = models.IntegerField()
+    prix = models.FloatField(default=0)
+    
     boutique = models.ForeignKey(Boutique, on_delete=models.CASCADE)
     
     actif = models.BooleanField(default=True)

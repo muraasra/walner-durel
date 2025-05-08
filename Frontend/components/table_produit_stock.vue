@@ -7,10 +7,12 @@ const colonnes = [
     key: "reference",
     label: "Référence",
   },
+  
   {
-    key: "imageProduit",
-    label: "Image",
+    key: "description",
+    label: "Description",
   },
+  
   {
     key: "nomProduit",
     label: "Nom",
@@ -19,14 +21,12 @@ const colonnes = [
     key: "categorie",
     label: "Catégorie",
   },
-  {
-    key: "couleursDisponibles",
-    label: "Couleurs",
-  },
+
   {
     key: "prix",
     label: "Prix (FCFA)",
   },
+  
   {
     key: "quantiteTotale",
     label: "Quantité",
@@ -35,23 +35,31 @@ const colonnes = [
     key: "statut",
     label: "Statut",
   },
-  {
-    key: "lieuCommande",
-    label: "Lieu de commande",
-  },
+ 
 ];
 
-const produits = PRODUCTS_DATA.map((p, i) => ({
-  reference: p.reference,
-  imageProduit: p.imageProduit,
-  nomProduit: p.nomProduit,
-  categorie: p.categorie,
-  couleursDisponibles: p.couleursDisponibles,
-  prix: p.prix,
-  quantiteTotale: p.quantiteTotale,
-  statut: p.statut,
-  lieuCommande: p.lieuCommande,
-}));
+
+const { data, error } = useApi('http://127.0.0.1:8000/api/produits/', {
+    method: 'GET',
+    server: false
+});
+
+if (error.value) {
+    console.error("Erreur API :", error.value);
+}
+
+const produits = Array.isArray(data.value)
+  ? data.value.map(p => ({
+      reference: p.reference,
+      nomProduit: p.nom,
+      categorie: p.category,
+      prix: p.prix,
+      description: p.description,
+      quantiteTotale: p.quantite,
+      statut: p.actif ? "Disponible" : "Non disponible",
+    }))
+  : [];
+
 
 const q = ref("");
 const page = ref(1);
@@ -107,17 +115,17 @@ const totalProduitsFiltres = computed(() => {
         :columns="colonnes"
         class="w-[270px] sm:w-[320px] md:w-[490px] lg:w-full overflow-x-auto"
       >
-        <template #imageProduit-data="{ row }">
+       <!-- <template #imageProduit-data="{ row }">
           <img
             :src="row.imageProduit"
             :alt="row.nomProduit"
             class="w-[140px] h-[90px]"
           />
-        </template>
+        </template>-->
         <template #prix-data="{ row }">
           <span>{{ row.prix }} </span>
         </template>
-        <template #couleursDisponibles-data="{ row }">
+        <!--<template #couleursDisponibles-data="{ row }">
           <div class="flex items-center gap-x-1">
             <span
               v-for="couleur in row.couleursDisponibles"
@@ -125,7 +133,7 @@ const totalProduitsFiltres = computed(() => {
               :style="{ backgroundColor: couleur }"
             />
           </div>
-        </template>
+        </template>-->
       </UTable>
 
       <div
