@@ -87,6 +87,9 @@ class CommandeClient(models.Model):
     produit = models.ForeignKey(Produit, on_delete=models.CASCADE)
     quantite = models.IntegerField()
     prix_unitaire_fcfa = models.FloatField()
+    nom = models.CharField(max_length=100,default='')
+    prenom = models.CharField(max_length=100,default='')
+    telephone = models.CharField(max_length=100,default='')
 
     @property
     def total(self):

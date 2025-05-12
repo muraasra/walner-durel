@@ -1,19 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from "vue";
 import { useNotification } from '../types/useNotification';
-import { Body } from "#components";
-import { boolean } from "zod";
-
-interface InvoiceBody {
-  total: number;
-  quantite: number;
-  prix_unitaire_fcfa: number;
-  nom: string;
-  prenom: string;
-  telephone: string;
-  produit: number;
-  facture?: number;
-}
 
 interface InvoiceItem {
   id: number;
@@ -79,7 +66,7 @@ const fetchProducts = async () => {
     // Mappez les données de l'API vers  Product
     products.value = Array.isArray(data.value)
       ? data.value.map(p => ({
-        id : p.id,
+        id: p.id,
         reference: p.reference,
         nom: p.nom,
         description: p.description,
@@ -154,7 +141,7 @@ const addItem = () => {
   const product = findProductByReference(currentProductRef.value);
   if (product) {
     invoice.value.items.push({
-      id: product.id,
+      id: product.id, // Assurez-vous que l'ID est défini
       reference: product.reference,
       name: product.nom,
       description: product.description,
@@ -268,61 +255,36 @@ const saveInvoice = async () => {
         prix_unitaire_fcfa: item.price,
         total: item.quantity * item.price,
         produit: product?.id || 0,
-        facture: facture.value.id
+        facture: facture.value?.id
       };
     });
 
     if (invoice.value.recipientType === 'client') {
-        
-    const endpoint = 'http://127.0.0.1:8000/api/commandes-client/';
-    let isSuccess: boolean = false;
-        
-  for (const InvoiceItem of invoice.value.items) {
-    const invoiceBody: InvoiceBody = {
-      total: InvoiceItem.quantity * InvoiceItem.price,
-      quantite: InvoiceItem.quantity,
-      prix_unitaire_fcfa: InvoiceItem.price,
-      nom: invoice.value.client.nom,
-      prenom: invoice.value.client.prenom,
-      telephone: invoice.value.client.telephone,
-      produit: InvoiceItem.id,
-      facture: facture.value?.id,
-    };
+      endpoint = 'http://127.0.0.1:8000/api/commandes-client/';
 
-    try {
-      const { data } = await useApi(endpoint, {
+      const body = invoice.value.items.map(InvoiceItem => ({
+        id: InvoiceItem.id,
+        total: InvoiceItem.quantity * InvoiceItem.price,
+        quantite: InvoiceItem.quantity,
+        prix_unitaire_fcfa: InvoiceItem.price,
+        nom: invoice.value.client.nom,
+        prenom: invoice.value.client.prenom,
+        telephone: invoice.value.client.telephone,
+        produit: InvoiceItem.id,
+        facture: facture.value?.id,
+      }));
+
+      const { data: client } = await useApi(endpoint, {
         method: 'POST',
-        body: JSON.stringify(invoiceBody),
+        body: JSON.stringify(body),
         server: false
       });
-      isSuccess = true;
-      console.log(`Facture envoyée pour le produit ${InvoiceItem.id}:`, data);
-
-    } catch (error) {
-      console.error(`Erreur lors de l'envoi du produit ${InvoiceItem.id}:`, error);
-      isSuccess = false;
-
-    }
-
-  }
-
-  if (isSuccess) {
-    success(`Facture ${invoice.value.number} enregistrée`);
-    
-  }
-    
-
-
 
 
       // commandes.forEach(cmd => cmd.client = client.value?.id);
     } else {
       endpoint = 'http://127.0.0.1:8000/api/commandes-partenaire/';
 
-
-
-
-      
       const selectedPartner = partners.value.find(
         p => `${p.prenom} ${p.nom}` === invoice.value.partenaire
       );
@@ -358,19 +320,20 @@ const saveInvoice = async () => {
       recipientType: "",
       client: { nom: "", prenom: "", telephone: "" },
       partenaire: "",
-      items: [],
+      items : [],
       taxRate: 10,
       montantVerse: 0,
     };
 
   } catch (err) {
-    // error("Erreur inattendue");
+    error("Erreur inattendue");
     console.error("Erreur complète:", err);
   }
 };
 </script>
 
 <template>
+  <pre>{{ invoice.items }}</pre>
   <section class="mt-5 px-6">
     <h2 class="text-xl md:text-3xl font-bold text-blue-400">Factures</h2>
     <div class="mt-7 border mx-auto dark:border-gray-600 dark:shadow-gray-800 shadow-xl rounded-lg overflow-hidden">
@@ -431,18 +394,18 @@ const saveInvoice = async () => {
           </div>
         </div>
 
-        <!-- Invoice Items -->
+        <!-- Invoice items-->
         <div class="mb-6">
           <h2 class="text-xl font-semibold text-blue-400 mb-3">
             Articles de la Facture
           </h2>
 
           <!-- Ajout d'article par référence -->
-          <div class="flex flex-wrap sm:flex-nowrap items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
+          <div class="flex flex-wrap sm:flex-nowrap itemscenter space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
             <UInput v-model="currentProductRef" color="blue" variant="outline" placeholder="Référence du produit"
               class="flex-grow w-full sm:w-auto" />
             <UButton @click="addItem" color="blue" variant="solid" icon="i-heroicons-plus"
-              class="w-full flex items-center justify-center sm:w-auto">
+              class="w-full flex itemscenter justify-center sm:w-auto">
               Ajouter
             </UButton>
           </div>
@@ -462,7 +425,7 @@ const saveInvoice = async () => {
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(item, index) in invoice.items" :key="index" class="border-b dark:border-gray-600">
+                <tr v-for="(item, index) in invoice.items"  :key =" index" class="border-b dark:border-gray-600">
                   <td class="px-4 py-2">{{ item.reference }}</td>
                   <td class="px-4 py-2">{{ item.name }}</td>
                   <td class="px-4 py-2">{{ item.description }}</td>
@@ -484,7 +447,7 @@ const saveInvoice = async () => {
 
         <!-- Montant versé et reste à payer -->
         <div class="mb-6">
-          <div class="flex justify-between items-center py-2 border-t border-gray-200 dark:border-gray-600">
+          <div class="flex justify-between itemscenter py-2 border-t border-gray-200 dark:border-gray-600">
             <span class="text-sm font-medium text-gray-500 dark:text-gray-300">Total produits :</span>
             <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ totalItems }}</span>
           </div>
