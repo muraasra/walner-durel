@@ -29,6 +29,11 @@ export const NAVIGATION_ITEMS = [
       link: "/facturation",
       icon: "i-heroicons-document-currency-dollar",
     },
+    {
+      name: "Liste des factures",
+      link: "/listes-factures",
+      icon: "i-heroicons-clipboard-document-list",
+    },
   ],
   [
     {
@@ -94,8 +99,12 @@ export const NAVIGATION_ITEMS_ADMIN = [
       name: "Facturation",
       link: "/facturation",
       icon: "i-heroicons-document-currency-dollar",
+    },    
+    {
+      name: "Liste des factures",
+      link: "/listes-factures",
+      icon: "i-heroicons-clipboard-document-list",
     },
-
   ],
   [
     {

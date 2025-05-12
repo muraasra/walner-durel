@@ -1,78 +1,3 @@
-<!-- <script setup lang="ts">
-import { ref } from "vue";
-import ajouter_partenaires from "@/components/ajouter_partenaires.vue";
-import type { Partenaire } from "~/types";
-
-const partenaires = ref<Partenaire[]>([
-  {
-    id: "1",
-    nomPartenaire: "Doe",
-    prenomPartenaire: "John",
-    telephone: 123456789,
-    status: "En cours de payement",
-    boutique: true,
-    localisationBoutique: "Douala",
-    dateAdhesion: "2024-03-12",
-  },
-]);
-
-const showModal = ref(false);
-
-const ajouterPartenaire = (partenaire: Partenaire) => {
-  console.log("Partenaire à ajouter :", partenaire); // Debug
-  partenaire.id = String(partenaires.value.length + 1);
-  partenaires.value.push(partenaire);
-  console.log("Liste des partenaires après ajout :", partenaires.value); // Debug
-};
-
-const columns = [
-  { key: "nomPartenaire", label: "Nom" },
-  { key: "prenomPartenaire", label: "Prénom" },
-  { key: "telephone", label: "Téléphone" },
-  { key: "status", label: "Statut" },
-  { key: "boutique", label: "Boutique" },
-  { key: "localisationBoutique", label: "Localisation" },
-  { key: "dateAdhesion", label: "Date d'adhésion" },
-];
-</script>
-
-<template>
-  <div class="mt-5 px-6">
-    <div class="flex justify-between items-center mb-4">
-      <h2 class="text-xl md:text-3xl font-bold text-blue-400">Partenaires</h2>
-      <UButton @click="showModal = true" color="blue"> + Ajouter Un Partenaire </UButton>
-    </div>
-
-    <div class="bg-white shadow-md rounded-lg border p-4">
-      <UTable :rows="partenaires" :columns="columns">
-        <template #boutique-data="{ row }">
-          <span class="flex items-center gap-1" :class="row.boutique ? 'text-green-500' : 'text-red-500'">
-            <UIcon v-if="row.boutique" name="i-heroicons-check-circle" class="w-5 h-5 text-green-500" />
-            <UIcon v-else name="i-heroicons-x-circle" class="w-5 h-5 text-red-500" />
-            {{ row.boutique ? "Oui" : "Non" }}
-          </span>
-        </template>
-
-        <template #status-data="{ row }">
-          <span
-            class="px-2 py-1 rounded-lg text-white text-sm font-medium"
-            :class="{
-              'bg-green-500': row.status === 'payé',
-              'bg-yellow-500': row.status === 'En cours de payement',
-              'bg-red-500': row.status !== 'payé' && row.status !== 'En cours de payement',
-            }"
-          >
-            {{ row.status }}
-          </span>
-        </template>
-      </UTable>
-    </div>
-
-    <ajouter_partenaires v-if="showModal" @close="showModal = true" @ajouterPartenaire="ajouterPartenaire" />
-  </div>
-</template> -->
-
-
 <script setup lang="ts">
 import { ref } from "vue";
 import type { Partenaire } from "~/types";
@@ -99,19 +24,6 @@ const partenaires = Array.isArray(data.value)
   }))
   : [];
 
-// Liste des partenaires
-// const partenaires = ref<Partenaire[]>([
-//   {
-//     id: "1",
-//     nomPartenaire: "Doe",
-//     prenomPartenaire: "John",
-//     telephone: 123456789,
-//     status: "payé",
-//     boutique: true,
-//     localisationBoutique: "Douala",
-//     dateAdhesion: "2024-03-12",
-//   },
-// ]);
 
 // État pour afficher/masquer la modale d'ajout
 const showModal = ref(false);

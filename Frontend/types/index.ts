@@ -1,20 +1,15 @@
 export type Produit = {
-  id: string;
-  nomProduit: string;
-  imageProduit: string;
+  id: number;
+  reference: string;
+  category: string;
+  nom: string;
+  description: string;
+  quantite: number;
   prix: number;
-  dateCommande: string;
-  quantiteTotale: number;
-  quantiteCommandee: number;
-  statut: string;
-  lieuCommande: string;
-  categorie: string;
-  reference: string; // CODE BARRE
-  descriptionProduit: string;
-  nomClient: string;
-  couleursDisponibles: string[];
-  estPartenaire : boolean;
+  actif: boolean;
+  boutique: number;
 };
+
 
 export type Partenaire = {
   id: string;
