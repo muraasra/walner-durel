@@ -75,8 +75,10 @@ class Facture(models.Model):
         ('partenaire', 'Partenaire'),
     )
     type = models.CharField(max_length=20, choices=TYPES)
+    nom = models.CharField(max_length=20, default='',blank=True)
     total = models.FloatField()
     reste = models.FloatField()
+    
     status = models.CharField(max_length=20, default='En attente')
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     boutique = models.ForeignKey(Boutique, on_delete=models.CASCADE)

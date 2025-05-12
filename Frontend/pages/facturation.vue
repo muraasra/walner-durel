@@ -14,6 +14,14 @@ interface InvoiceBody {
   produit: number;
   facture?: number;
 }
+interface InvoiceBodyPartners {
+  total: number;
+  quantite: number;
+  prix_unitaire_fcfa: number;
+  partenaire: number;
+  produit: number;
+  facture?: number;
+}
 
 interface InvoiceItem {
   id: number;
@@ -33,6 +41,7 @@ interface Invoice {
     prenom: string;
     telephone: string;
   };
+  
   partenaire: string;
   items: InvoiceItem[];
   taxRate: number;
@@ -231,13 +240,20 @@ const saveInvoice = async () => {
       error("Veuillez sélectionner un type de destinataire");
       return;
     }
-
+    let nomFacture : string = "";
+    if (invoice.value.recipientType=="client"){
+        nomFacture=invoice.value.client.nom + ' ' +invoice.value.client.prenom
+    }
+    if (invoice.value.recipientType=="partenaire"){
+        nomFacture=invoice.value.partenaire
+    }
     // Préparation des données de la facture
     const factureData = {
       type: invoice.value.recipientType,
       total: total.value,
       reste: reste.value,
       status: reste.value > 0 ? 'encours' : 'payé',
+      nom: nomFacture,
       created_at: new Date().toISOString(),
       boutique: 1, // À remplacer par l'ID réel de la boutique
       created_by: 1 // À remplacer par l'ID de l'utilisateur connecté
@@ -307,7 +323,7 @@ const saveInvoice = async () => {
   }
 
   if (isSuccess) {
-    success(`Facture ${invoice.value.number} enregistrée`);
+    success(`Facture client ${invoice.value.number} enregistrée`);
     
   }
     
@@ -318,38 +334,81 @@ const saveInvoice = async () => {
       // commandes.forEach(cmd => cmd.client = client.value?.id);
     } else {
       endpoint = 'http://127.0.0.1:8000/api/commandes-partenaire/';
-
-
-
-
+      let isSuccess: boolean = false;
+        
+        for (const InvoiceItem of invoice.value.items) {
+          const InvoiceBodyPartners: InvoiceBodyPartners = {
+            total: InvoiceItem.quantity * InvoiceItem.price,
+            quantite: InvoiceItem.quantity,
+            prix_unitaire_fcfa: InvoiceItem.price,
+            partenaire: partners.value.id,
+            produit: InvoiceItem.id,
+            facture: facture.value?.id,
+          };
       
-      const selectedPartner = partners.value.find(
+          try {
+            const { data } = await useApi(endpoint, {
+              method: 'POST',
+              body: JSON.stringify(InvoiceBodyPartners),
+              server: false
+            });
+            isSuccess = true;
+            const selectedPartner = partners.value.find(
         p => `${p.prenom} ${p.nom}` === invoice.value.partenaire
       );
 
-      if (!selectedPartner?.id) {
+            if (!selectedPartner?.id) {
+            isSuccess = false;
+
         error("Partenaire introuvable");
         return;
       }
+            console.log(`Facture envoyée pour le produit ${InvoiceItem.id}:`, data);
+      
+          } catch (error) {
+            console.error(`Erreur lors de l'envoi du produit ${InvoiceItem.id}:`, error);
+            isSuccess = false;
+      
+          }
+      
+        }
+      
+        if (isSuccess) {
+          success(`Facture partenaire ${invoice.value.number} enregistrée`);
+          
+        }
+          
 
-      commandes.forEach(cmd => cmd.partenaire = selectedPartner.id);
+
+
+
+      // const selectedPartner = partners.value.find(
+      //   p => `${p.prenom} ${p.nom}` === invoice.value.partenaire
+      // );
+
+      // if (!selectedPartner?.id) {
+      //   error("Partenaire introuvable");
+      //   return;
+      // }
+
+      // commandes.forEach(cmd => cmd.partenaire = selectedPartner.id);
     }
 
-    // Envoi des commandes
-    const { error: commandesError } = await useApi(endpoint, {
-      method: 'POST',
-      body: commandes,
-      server: false
-    });
+    // // Envoi des commandes
+    // const { error: commandesError } = await useApi(endpoint, {
+    //   method: 'POST',
+    //   body: commandes,
+    //   server: false
+    // // });
 
-    if (commandesError.value) {
-      error("Erreur lors de l'enregistrement des articles");
-      return;
-    }
+    // if (commandesError.value) {
+    //   error("Erreur lors de l'enregistrement des articles");
+    //   return;
+    // }
 
     // Succès
-    success(`Facture ${invoice.value.number} enregistrée`);
-    console.log("Facture créée:", facture.value);
+    // success(`Facture ${invoice.value.number} enregistrée`);
+    // console.log("Facture créée:", facture.value);
 
     // Réinitialisation
     invoice.value = {
