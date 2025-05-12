@@ -76,6 +76,7 @@ class Facture(models.Model):
     )
     type = models.CharField(max_length=20, choices=TYPES)
     nom = models.CharField(max_length=20, default='',blank=True)
+    numero = models.CharField(max_length=20, default='',blank=True)
     total = models.FloatField()
     reste = models.FloatField()
     

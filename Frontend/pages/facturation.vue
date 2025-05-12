@@ -3,6 +3,9 @@ import { ref, computed, onMounted } from "vue";
 import { useNotification } from '../types/useNotification';
 import { Body } from "#components";
 import { boolean } from "zod";
+import { useAuthStore } from '@/stores/auth'
+const auth = useAuthStore()
+
 
 interface InvoiceBody {
   total: number;
@@ -254,9 +257,10 @@ const saveInvoice = async () => {
       reste: reste.value,
       status: reste.value > 0 ? 'encours' : 'payé',
       nom: nomFacture,
+      numero: invoice.value.number,
       created_at: new Date().toISOString(),
       boutique: 1, // À remplacer par l'ID réel de la boutique
-      created_by: 1 // À remplacer par l'ID de l'utilisateur connecté
+      created_by: auth.user?.id // À remplacer par l'ID de l'utilisateur connecté
     };
 
     // 1. Enregistrement de la facture principale

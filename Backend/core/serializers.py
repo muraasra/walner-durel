@@ -32,6 +32,7 @@ class FactureSerializer(serializers.ModelSerializer):
     class Meta:
         model = Facture
         fields = '__all__'
+        order_by ="DESC"
 
 class CommandeClientSerializer(serializers.ModelSerializer):
     total = serializers.ReadOnlyField()

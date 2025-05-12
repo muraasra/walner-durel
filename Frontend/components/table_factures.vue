@@ -5,24 +5,28 @@ import selecteur_date from "./selecteur_date.vue";
 interface Facture {
   id: number;
   date: string;
-  partenaire: string;
+  nom: string;
   total: number;
   verse: number;
   reste: number;
-  produits: string[];
+  type: string;
+  status:string;
+
 }
 
 const props = defineProps<{ factures: Facture[] }>();
 
 const columns = 
 [
-  { key: "numero-facture", label: "Numero Facture" },
+  { key: "id", label: "Numero Facture" },
   { key: "date", label: "Date" },
   { key: "type", label: "Type" },
+  { key: "nom", label: "Nom" },
+  { key: "status", label: "Status" },
   { key: "total", label: "Montant Total" },
   { key: "verse", label: "Déjà Versé" },
   { key: "reste", label: "Reste à Payer" },
-  { key: "produits", label: "Produits" },
+  { key: "action", label: "Actions" },
 ];
 
 const q = ref("");
@@ -80,18 +84,25 @@ watch([q, plageDatesSelectionnee], () => {
       <template #total-data="{ row }">{{ row.total }} FCFA</template>
       <template #verse-data="{ row }">{{ row.verse }} FCFA</template>
       <template #reste-data="{ row }">{{ row.reste }} FCFA</template>
-      <template #produits-data="{ row }">
+      <!-- <template #produits-data="{ row }">
         <ul>
           <li v-for="produit in row.produits" :key="produit">{{ produit }}</li>
         </ul>
-      </template>
-      <template #actions-data="{ row }">
+      </template> -->
+      <!-- <template #actions-data="{ row }">
           <UButton color="blue" @click="nouveauVersement(row)">Versement</UButton>
+        </template> -->
+        <!-- Colonne personnalisée pour les actions -->
+        <template #action-data="{ row }">
+          <UButton color="blue" @click="ouvrirModaleVersement(row)">Versement</UButton>
+          <UButton color="blue" @click="ouvrirModaleVoir(row)">voir</UButton>
         </template>
+        <!-- Colonne personnalisée pour les actions -->
     </UTable>
 
     <div class="flex justify-end px-3 py-3.5 border-t border-gray-200 dark:border-gray-700">
       <UPagination v-model="page" :page-count="pageCount" :total="totalFactures" />
     </div>
+    
   </div>
 </template>

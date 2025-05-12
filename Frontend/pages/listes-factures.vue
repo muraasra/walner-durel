@@ -5,11 +5,13 @@ import table_factures from '@/components/table_factures.vue';
 interface Facture {
   id: number;
   date: string;
-  partenaire: string;
+  nom: string;
   total: number;
   verse: number;
   reste: number;
-  produits: string[];
+  type: string;
+  status: string;
+
 }
 
 const factures = ref<Facture[]>([]);
@@ -25,25 +27,35 @@ const totalVerse = computed(() =>
 const totalReste = computed(() =>
   factures.value.reduce((acc, curr) => acc + (curr.reste || 0), 0)
 );
+const { data, error } = useApi('http://localhost:8000/api/factures/', {
+    method: 'GET',
+    server: false
+});
 
-const fetchFactures = async () => {
-  try {
-    const response = await useApi('http://127.0.0.1:8000/api/factures-detaillees/');
-    factures.value = response.data.map((facture: any) => ({
-      id: facture.id,
-      date: facture.date.split('T')[0],
-      type: facture.destinataire,
-      total: facture.total,
-      verse: facture.verse,
-      reste: facture.reste,
-      produits: facture.produits,
-    }));
-  } catch (error) {
-    console.error('Erreur de récupération des factures détaillées:', error);
-  }
-};
+if (error.value) {
+    console.error("Erreur API :", error.value);
+}
+factures.value = Array.isArray(data.value)
+  ? data.value.map(facture => ({
+      id: facture.numero,
+      type: facture.type,
+      status: facture.status,
+      date: facture.created_at ? facture.created_at.split('T')[0] : 'Date inconnue',
+      nom: facture.nom ,
+      total: facture.total ?? 0,
+      verse: facture.verse ?? 0,  // Vérifiez si l'API retourne ce champ
+      reste: facture.reste ?? 0
+    }))
+  : [];
 
-onMounted(fetchFactures);
+console.log("Factures récupérées :", data.value);
+
+
+
+
+ 
+// Appel de la fonction
+
 </script>
 
 <template>
