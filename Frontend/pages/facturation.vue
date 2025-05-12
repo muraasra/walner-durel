@@ -171,7 +171,7 @@ const taxAmount = computed(() => {
 const total = computed(() => {
   return subtotal.value + taxAmount.value;
 });
-g
+
 // Calcul du montant restant à payer
 const reste = computed(() => {
   return total.value - invoice.value.montantVerse;
@@ -261,7 +261,7 @@ const saveInvoice = async () => {
       endpoint = 'http://127.0.0.1:8000/api/commandes-client/';
       
       // Création du client si nécessaire (à adapter selon votre API)
-      const { data: client } = await useApi('/api/clients/', {
+      const { data: client } = await useApi(endpoint, {
         method: 'POST',
         body: invoice.value.client,
         server: false
