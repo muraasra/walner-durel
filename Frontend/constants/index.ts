@@ -12,16 +12,16 @@ export const NAVIGATION_ITEMS = [
       link: "/stock_produit",
       icon: "i-heroicons-square-2-stack",
     },
-    {
-      name: "Liste des Commandes",
-      link: "/liste-ordres",
-      icon: "i-heroicons-list-bullet",
-    },
-    {
-      name: "Commandes des Partenaires",
-      link: "/commandes_partenaires",
-      icon: "i-heroicons-clipboard-document-list",
-    },
+    // {
+    //   name: "Liste des Commandes",
+    //   link: "/liste-ordres",
+    //   icon: "i-heroicons-list-bullet",
+    // },
+    // {
+    //   name: "Commandes des Partenaires",
+    //   link: "/commandes_partenaires",
+    //   icon: "i-heroicons-clipboard-document-list",
+    // },
   ],
   [
     {
@@ -64,11 +64,11 @@ export const NAVIGATION_ITEMS_ADMIN = [
       icon: "i-heroicons-squares-plus",
     },
 
-    {
-      name: "Liste des Commandes",
-      link: "/liste-ordres",
-      icon: "i-heroicons-list-bullet",
-    },
+    // {
+    //   name: "Liste des Commandes",
+    //   link: "/liste-ordres",
+    //   icon: "i-heroicons-list-bullet",
+    // },
     {
       name: "Stock des Produits",
       link: "/stock_produit",
@@ -88,11 +88,11 @@ export const NAVIGATION_ITEMS_ADMIN = [
       link: "/Partenaires",
       icon: "i-heroicons-user-group",
     },
-    {
-      name: "Commandes des Partenaires",
-      link: "/commandes_partenaires",
-      icon: "i-heroicons-clipboard-document-list",
-    },
+    // {
+    //   name: "Commandes des Partenaires",
+    //   link: "/commandes_partenaires",
+    //   icon: "i-heroicons-clipboard-document-list",
+    // },
   ],
   [ 
     {

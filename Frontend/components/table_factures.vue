@@ -4,6 +4,7 @@ import selecteur_date from "./selecteur_date.vue";
 
 interface Facture {
   id: number;
+  numero: string;
   date: string;
   nom: string;
   total: number;
@@ -18,7 +19,7 @@ const props = defineProps<{ factures: Facture[] }>();
 
 const columns = 
 [
-  { key: "id", label: "Numero Facture" },
+  { key: "numero", label: "Numero Facture" },
   { key: "date", label: "Date" },
   { key: "type", label: "Type" },
   { key: "nom", label: "Nom" },
@@ -94,8 +95,8 @@ watch([q, plageDatesSelectionnee], () => {
         </template> -->
         <!-- Colonne personnalisée pour les actions -->
         <template #action-data="{ row }">
-          <UButton color="blue" @click="ouvrirModaleVersement(row)">Versement</UButton>
-          <UButton color="blue" @click="ouvrirModaleVoir(row)">voir</UButton>
+          <UButton color="blue" class="mr-2" @click="$emit('versement',row)">Versement</UButton>
+          <UButton color="green" @click="$emit('voir',row)">voir</UButton>
         </template>
         <!-- Colonne personnalisée pour les actions -->
     </UTable>
