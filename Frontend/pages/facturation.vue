@@ -74,6 +74,16 @@ interface Partner {
   boutique?: string;
 }
 
+// Interfaces pour les réponses API
+interface StockResponse {
+  quantite: number;
+  id: number;
+}
+
+interface FactureResponse {
+  id: number;
+}
+
 // Récupération des produits depuis l'API
 const products = ref<Product[]>([]);
 const fetchProducts = async () => {
@@ -147,6 +157,21 @@ const invoice = ref<Invoice>({
 const currentProductRef = ref("");
 const invoicePreview = ref<HTMLElement | null>(null);
 
+// État pour la recherche de produits
+const searchQuery = ref("");
+const showProductSearch = ref(false);
+
+// Computed pour filtrer les produits selon la recherche
+const filteredProducts = computed(() => {
+  if (!searchQuery.value) return [];
+  
+  const query = searchQuery.value.toLowerCase().trim();
+  return products.value.filter(product => 
+    product.reference.toLowerCase().includes(query) ||
+    product.nom.toLowerCase().includes(query)
+  ).slice(0, 5); // Limite à 5 résultats
+});
+
 function generateInvoiceNumber(): string {
   const prefix = "FACT";
   const date = new Date();
@@ -162,16 +187,16 @@ const findProductByReference = (reference: string): Product | undefined => {
   return products.value.find((product) => product.reference === reference);
 };
 
-const addItem = async () => {
-  const product = findProductByReference(currentProductRef.value);
-  if (product) {
+// Sélection d'un produit depuis la liste de recherche
+const selectProduct = async (product: Product) => {
+  try {
     // Vérifier le stock disponible
-    const { data: stockData } = await useApi(`http://127.0.0.1:8000/api/produits/${product.id}`, {
+    const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${product.id}`, {
       method: 'GET',
       server: false
     });
 
-    if (!stockData.value?.quantite || stockData.value.quantite < 1) {
+    if (!stockData.value || !stockData.value.quantite || stockData.value.quantite < 1) {
       alert("Stock insuffisant pour ce produit");
       return;
     }
@@ -184,9 +209,12 @@ const addItem = async () => {
       quantity: 1,
       price: product.prix,
     });
-    currentProductRef.value = "";
-  } else {
-    alert("Produit non trouvé. Veuillez vérifier la référence.");
+    
+    searchQuery.value = "";
+    showProductSearch.value = false;
+  } catch (err) {
+    console.error("Erreur lors de la vérification du stock:", err);
+    alert("Erreur lors de la vérification du stock");
   }
 };
 
@@ -243,8 +271,7 @@ const saveInvoice = async () => {
   const { success, error } = useNotification();
 
   try {
-    const userId = parseInt(auth.user?.id, 10);
-    // Vérifications initiales
+    const userId = auth.user?.id?.toString() || '1';
     if (invoice.value.items.length === 0) {
       error("Veuillez ajouter au moins un article");
       return;
@@ -257,12 +284,12 @@ const saveInvoice = async () => {
 
     // Vérifier le stock pour tous les articles avant de procéder
     for (const item of invoice.value.items) {
-      const { data: stockData } = await useApi(`http://127.0.0.1:8000/api/produits/${item.id}`, {
+      const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${item.id}`, {
         method: 'GET',
         server: false
       });
 
-      if (!stockData.value?.quantite || stockData.value.quantite < item.quantity) {
+      if (!stockData.value || !stockData.value.quantite || stockData.value.quantite < item.quantity) {
         error(`Stock insuffisant pour ${item.name}: ${stockData.value?.quantite || 0} disponible(s), ${item.quantity} demandé(s)`);
         return;
       }
@@ -288,7 +315,7 @@ const saveInvoice = async () => {
       created_by: 1,
     };
 
-    const { data: facture, error: factureError } = await useApi(
+    const { data: facture, error: factureError } = await useApi<FactureResponse>(
       'http://127.0.0.1:8000/api/factures/',
       {
         method: 'POST',
@@ -329,18 +356,20 @@ const saveInvoice = async () => {
           });
 
           // Mettre à jour le stock
-          const { data: stockData } = await useApi(`http://127.0.0.1:8000/api/produits/${item.id}`, {
+          const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${item.id}`, {
             method: 'GET',
             server: false
           });
 
-          const nouveauStock = stockData.value.quantite - item.quantity;
-          
-          await useApi(`http://127.0.0.1:8000/api/produits/${item.id}/`, {
-            method: 'PATCH',
-            body: JSON.stringify({ quantite: nouveauStock }),
-            server: false
-          });
+          if (stockData.value && typeof stockData.value.quantite === 'number') {
+            const nouveauStock = stockData.value.quantite - item.quantity;
+            
+            await useApi(`http://127.0.0.1:8000/api/produits/${item.id}/`, {
+              method: 'PATCH',
+              body: JSON.stringify({ quantite: nouveauStock }),
+              server: false
+            });
+          }
 
         } catch (err) {
           console.error(`Erreur pour l'article ${item.id}:`, err);
@@ -395,18 +424,20 @@ const saveInvoice = async () => {
           });
 
           // Mettre à jour le stock
-          const { data: stockData } = await useApi(`http://127.0.0.1:8000/api/produits/${item.id}`, {
+          const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${item.id}`, {
             method: 'GET',
             server: false
           });
 
-          const nouveauStock = stockData.value.quantite - item.quantity;
-          
-          await useApi(`http://127.0.0.1:8000/api/produits/${item.id}/`, {
-            method: 'PATCH',
-            body: JSON.stringify({ quantite: nouveauStock }),
-            server: false
-          });
+          if (stockData.value && typeof stockData.value.quantite === 'number') {
+            const nouveauStock = stockData.value.quantite - item.quantity;
+            
+            await useApi(`http://127.0.0.1:8000/api/produits/${item.id}/`, {
+              method: 'PATCH',
+              body: JSON.stringify({ quantite: nouveauStock }),
+              server: false
+            });
+          }
 
         } catch (err) {
           console.error(`Erreur pour l'article ${item.id}:`, err);
@@ -436,6 +467,14 @@ const saveInvoice = async () => {
     console.error("Erreur complète:", err);
   }
 };
+
+// Computed pour le nombre total d'articles
+const totalItems = computed(() => {
+  return invoice.value.items.reduce((sum, item) => sum + item.quantity, 0);
+});
+
+// Utility function for delay
+const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
 </script>
 
 <template>
@@ -505,14 +544,37 @@ const saveInvoice = async () => {
             Articles de la Facture
           </h2>
 
-          <!-- Ajout d'article par référence -->
-          <div class="flex flex-wrap sm:flex-nowrap items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
-            <UInput v-model="currentProductRef" color="blue" variant="outline" placeholder="Référence du produit"
-              class="flex-grow w-full sm:w-auto" />
-            <UButton @click="addItem" color="blue" variant="solid" icon="i-heroicons-plus"
-              class="w-full flex items-center justify-center sm:w-auto">
-              Ajouter
-            </UButton>
+          <!-- Recherche de produit avec suggestions -->
+          <div class="relative mb-4">
+            <UInput 
+              v-model="searchQuery"
+              color="blue"
+              variant="outline"
+              placeholder="Rechercher un produit par référence ou nom"
+              class="w-full"
+              @focus="showProductSearch = true"
+              @blur="async () => { await delay(200); showProductSearch = false }"
+            />
+            
+            <!-- Liste des suggestions -->
+            <div v-if="showProductSearch && filteredProducts.length > 0" 
+                 class="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              <div v-for="product in filteredProducts" 
+                   :key="product.id"
+                   @click="selectProduct(product)"
+                   class="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b dark:border-gray-700">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ product.nom }}</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400">Réf: {{ product.reference }}</div>
+                  </div>
+                  <div class="text-blue-500 font-medium">{{ formatCurrency(product.prix) }}</div>
+                </div>
+                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Stock disponible: {{ product.quantite || 0 }}
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Liste des articles ajoutés -->
