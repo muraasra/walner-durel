@@ -39,6 +39,7 @@ class Produit(models.Model):
     nom = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     quantite = models.IntegerField()
+    prix_achat = models.FloatField(default=0, blank=True)
     prix = models.FloatField(default=0)
     
     boutique = models.ForeignKey(Boutique, on_delete=models.CASCADE)

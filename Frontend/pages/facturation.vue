@@ -14,15 +14,15 @@ interface InvoiceBody {
   nom: string;
   prenom: string;
   telephone: string;
-  produit: number;
+  produit_id: number;
   facture?: number;
 }
 interface InvoiceBodyPartners {
-  total: number;
+  // total: number;
   quantite: number;
   prix_unitaire_fcfa: number;
   partenaire: number;
-  produit: number;
+  produit_id: number;
   facture?: number;
 }
 
@@ -162,9 +162,20 @@ const findProductByReference = (reference: string): Product | undefined => {
   return products.value.find((product) => product.reference === reference);
 };
 
-const addItem = () => {
+const addItem = async () => {
   const product = findProductByReference(currentProductRef.value);
   if (product) {
+    // Vérifier le stock disponible
+    const { data: stockData } = await useApi(`http://127.0.0.1:8000/api/produits/${product.id}`, {
+      method: 'GET',
+      server: false
+    });
+
+    if (!stockData.value?.quantite || stockData.value.quantite < 1) {
+      alert("Stock insuffisant pour ce produit");
+      return;
+    }
+
     invoice.value.items.push({
       id: product.id,
       reference: product.reference,
@@ -175,7 +186,6 @@ const addItem = () => {
     });
     currentProductRef.value = "";
   } else {
-    // Optionnel: afficher un message d'erreur si le produit n'est pas trouvé
     alert("Produit non trouvé. Veuillez vérifier la référence.");
   }
 };
@@ -233,6 +243,7 @@ const saveInvoice = async () => {
   const { success, error } = useNotification();
 
   try {
+    const userId = parseInt(auth.user?.id, 10);
     // Vérifications initiales
     if (invoice.value.items.length === 0) {
       error("Veuillez ajouter au moins un article");
@@ -243,6 +254,20 @@ const saveInvoice = async () => {
       error("Veuillez sélectionner un type de destinataire");
       return;
     }
+
+    // Vérifier le stock pour tous les articles avant de procéder
+    for (const item of invoice.value.items) {
+      const { data: stockData } = await useApi(`http://127.0.0.1:8000/api/produits/${item.id}`, {
+        method: 'GET',
+        server: false
+      });
+
+      if (!stockData.value?.quantite || stockData.value.quantite < item.quantity) {
+        error(`Stock insuffisant pour ${item.name}: ${stockData.value?.quantite || 0} disponible(s), ${item.quantity} demandé(s)`);
+        return;
+      }
+    }
+
     let nomFacture : string = "";
     if (invoice.value.recipientType=="client"){
         nomFacture=invoice.value.client.nom + ' ' +invoice.value.client.prenom
@@ -250,7 +275,7 @@ const saveInvoice = async () => {
     if (invoice.value.recipientType=="partenaire"){
         nomFacture=invoice.value.partenaire
     }
-    // Préparation des données de la facture
+    
     const factureData = {
       type: invoice.value.recipientType,
       total: total.value,
@@ -259,11 +284,10 @@ const saveInvoice = async () => {
       nom: nomFacture,
       numero: invoice.value.number,
       created_at: new Date().toISOString(),
-      boutique: 1, // À remplacer par l'ID réel de la boutique
-      created_by: auth.user?.id // À remplacer par l'ID de l'utilisateur connecté
+      boutique: 1,
+      created_by: 1,
     };
 
-    // 1. Enregistrement de la facture principale
     const { data: facture, error: factureError } = await useApi(
       'http://127.0.0.1:8000/api/factures/',
       {
@@ -279,155 +303,136 @@ const saveInvoice = async () => {
       return;
     }
 
-    // 2. Enregistrement des commandes selon le type
-    let endpoint = '';
-    const commandes = invoice.value.items.map(item => {
-      const product = products.value.find(p => p.reference === item.reference);
-      return {
-        quantite: item.quantity,
-        prix_unitaire_fcfa: item.price,
-        total: item.quantity * item.price,
-        produit: product?.id || 0,
-        facture: facture.value.id
-      };
-    });
-
     if (invoice.value.recipientType === 'client') {
-        
-    const endpoint = 'http://127.0.0.1:8000/api/commandes-client/';
-    let isSuccess: boolean = false;
-        
-  for (const InvoiceItem of invoice.value.items) {
-    const invoiceBody: InvoiceBody = {
-      total: InvoiceItem.quantity * InvoiceItem.price,
-      quantite: InvoiceItem.quantity,
-      prix_unitaire_fcfa: InvoiceItem.price,
-      nom: invoice.value.client.nom,
-      prenom: invoice.value.client.prenom,
-      telephone: invoice.value.client.telephone,
-      produit: InvoiceItem.id,
-      facture: facture.value?.id,
-    };
+      const endpoint = 'http://127.0.0.1:8000/api/commandes-client/';
+      let isSuccess = true;
 
-    try {
-      const { data } = await useApi(endpoint, {
-        method: 'POST',
-        body: JSON.stringify(invoiceBody),
-        server: false
-      });
-      isSuccess = true;
-      console.log(`Facture envoyée pour le produit ${InvoiceItem.id}:`, data);
+      for (const item of invoice.value.items) {
+        // Créer la commande
+        const invoiceBody: InvoiceBody = {
+          total: item.quantity * item.price,
+          quantite: item.quantity,
+          prix_unitaire_fcfa: item.price,
+          nom: invoice.value.client.nom,
+          prenom: invoice.value.client.prenom,
+          telephone: invoice.value.client.telephone,
+          produit_id: item.id,
+          facture: facture.value?.id,
+        };
 
-    } catch (error) {
-      console.error(`Erreur lors de l'envoi du produit ${InvoiceItem.id}:`, error);
-      isSuccess = false;
+        try {
+          // Enregistrer la commande
+          const { data: commandeData } = await useApi(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(invoiceBody),
+            server: false
+          });
 
-    }
+          // Mettre à jour le stock
+          const { data: stockData } = await useApi(`http://127.0.0.1:8000/api/produits/${item.id}`, {
+            method: 'GET',
+            server: false
+          });
 
-  }
+          const nouveauStock = stockData.value.quantite - item.quantity;
+          
+          await useApi(`http://127.0.0.1:8000/api/produits/${item.id}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ quantite: nouveauStock }),
+            server: false
+          });
 
-  if (isSuccess) {
-    success(`Facture client ${invoice.value.number} enregistrée`);
-    
-  }
-    
+        } catch (err) {
+          console.error(`Erreur pour l'article ${item.id}:`, err);
+          isSuccess = false;
+          break;
+        }
+      }
 
+      if (isSuccess) {
+        success(`Facture client ${invoice.value.number} enregistrée`);
+        // Réinitialiser le formulaire
+        invoice.value = {
+          number: generateInvoiceNumber(),
+          date: new Date().toISOString().split("T")[0],
+          recipientType: "",
+          client: { nom: "", prenom: "", telephone: "" },
+          partenaire: "",
+          items: [],
+          taxRate: 10,
+          montantVerse: 0,
+        };
+      }
 
-
-
-      // commandes.forEach(cmd => cmd.client = client.value?.id);
     } else {
-      endpoint = 'http://127.0.0.1:8000/api/commandes-partenaire/';
-      let isSuccess: boolean = false;
-        
-        for (const InvoiceItem of invoice.value.items) {
-          const InvoiceBodyPartners: InvoiceBodyPartners = {
-            total: InvoiceItem.quantity * InvoiceItem.price,
-            quantite: InvoiceItem.quantity,
-            prix_unitaire_fcfa: InvoiceItem.price,
-            partenaire: partners.value.id,
-            produit: InvoiceItem.id,
-            facture: facture.value?.id,
-          };
-      
-          try {
-            const { data } = await useApi(endpoint, {
-              method: 'POST',
-              body: JSON.stringify(InvoiceBodyPartners),
-              server: false
-            });
-            isSuccess = true;
-            const selectedPartner = partners.value.find(
+      // Logique pour les partenaires...
+      const endpoint = 'http://127.0.0.1:8000/api/commandes-partenaire/';
+      let isSuccess = true;
+
+      const selectedPartner = partners.value.find(
         p => `${p.prenom} ${p.nom}` === invoice.value.partenaire
       );
 
-            if (!selectedPartner?.id) {
-            isSuccess = false;
-
+      if (!selectedPartner?.id) {
         error("Partenaire introuvable");
         return;
       }
-            console.log(`Facture envoyée pour le produit ${InvoiceItem.id}:`, data);
-      
-          } catch (error) {
-            console.error(`Erreur lors de l'envoi du produit ${InvoiceItem.id}:`, error);
-            isSuccess = false;
-      
-          }
-      
-        }
-      
-        if (isSuccess) {
-          success(`Facture partenaire ${invoice.value.number} enregistrée`);
+
+      for (const item of invoice.value.items) {
+        const invoiceBodyPartners: InvoiceBodyPartners = {
+          quantite: item.quantity,
+          prix_unitaire_fcfa: item.price,
+          partenaire: selectedPartner.id,
+          produit_id: item.id,
+          facture: facture.value?.id,
+        };
+
+        try {
+          await useApi(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(invoiceBodyPartners),
+            server: false
+          });
+
+          // Mettre à jour le stock
+          const { data: stockData } = await useApi(`http://127.0.0.1:8000/api/produits/${item.id}`, {
+            method: 'GET',
+            server: false
+          });
+
+          const nouveauStock = stockData.value.quantite - item.quantity;
           
+          await useApi(`http://127.0.0.1:8000/api/produits/${item.id}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({ quantite: nouveauStock }),
+            server: false
+          });
+
+        } catch (err) {
+          console.error(`Erreur pour l'article ${item.id}:`, err);
+          isSuccess = false;
+          break;
         }
-          
+      }
 
-
-
-
-      // const selectedPartner = partners.value.find(
-      //   p => `${p.prenom} ${p.nom}` === invoice.value.partenaire
-      // );
-
-      // if (!selectedPartner?.id) {
-      //   error("Partenaire introuvable");
-      //   return;
-      // }
-
-      // commandes.forEach(cmd => cmd.partenaire = selectedPartner.id);
+      if (isSuccess) {
+        success(`Facture partenaire ${invoice.value.number} enregistrée`);
+        // Réinitialiser le formulaire
+        invoice.value = {
+          number: generateInvoiceNumber(),
+          date: new Date().toISOString().split("T")[0],
+          recipientType: "",
+          client: { nom: "", prenom: "", telephone: "" },
+          partenaire: "",
+          items: [],
+          taxRate: 10,
+          montantVerse: 0,
+        };
+      }
     }
 
-    // // Envoi des commandes
-    // const { error: commandesError } = await useApi(endpoint, {
-    //   method: 'POST',
-    //   body: commandes,
-    //   server: false
-    // // });
-
-    // if (commandesError.value) {
-    //   error("Erreur lors de l'enregistrement des articles");
-    //   return;
-    // }
-
-    // Succès
-    // success(`Facture ${invoice.value.number} enregistrée`);
-    // console.log("Facture créée:", facture.value);
-
-    // Réinitialisation
-    invoice.value = {
-      number: generateInvoiceNumber(),
-      date: new Date().toISOString().split("T")[0],
-      recipientType: "",
-      client: { nom: "", prenom: "", telephone: "" },
-      partenaire: "",
-      items: [],
-      taxRate: 10,
-      montantVerse: 0,
-    };
-
   } catch (err) {
-    // error("Erreur inattendue");
+    error("Erreur inattendue");
     console.error("Erreur complète:", err);
   }
 };
