@@ -313,7 +313,7 @@ const COMPANY_INFO = {
   nui: "P100017639977 B",
   phones: ["656 89 47 73", "651 70 97 52"],
   notice: "Les Marchandises vendues ne sont ni reprises ni échangées",
-  warranty: "Garantie Produit – Service Après-Vente\nCe produit est couvert par une garantie de 6 mois à compter de la date d'achat figurant sur cette facture.\nEn cas de dysfonctionnement non causé par une mauvaise utilisation, vous pouvez bénéficier d'un service après-vente en présentant cette facture.\n\n⚠ Cette garantie couvre uniquement les défauts de fabrication et ne s'applique pas aux dommages physiques ou à l'usure normale.\n\nPour toute demande de prise en charge, contactez notre service client."
+  warranty: "Garantie Produit – Service Après-Vente\nCe produit est couvert par une garantie de 6 mois à compter de la date d'achat figurant sur cette facture.\nEn cas de dysfonctionnement non causé par une mauvaise utilisation, vous pouvez bénéficier d'un service après-vente en présentant cette facture.\n\n⚠ Cette garantie couvre uniquement les défauts de fabrication \net ne s'applique pas aux dommages physiques ou à l'usure normale.\n\nPour toute demande de prise en charge, contactez notre service client."
 };
 
 // Fonction pour générer le PDF
@@ -357,11 +357,11 @@ const generatePDF = () => {
     doc.text(invoice.value.number, 170, 15);
 
     // Date et informations client
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.text(`Date: ${new Date(invoice.value.date).toLocaleDateString()}`, 140, 25);
 
     // Section client
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.text("Doit M.", 20, 55);
     if (invoice.value.recipientType === 'client') {
       const clientName = `${invoice.value.client.prenom} ${invoice.value.client.nom}`;
@@ -416,11 +416,11 @@ const generatePDF = () => {
     const finalY = (doc as any).lastAutoTable.finalY + 10;
 
     // Notice
-    doc.setFontSize(8);
+    doc.setFontSize(10);
     doc.text(COMPANY_INFO.notice, 20, finalY);
 
     // Total en lettres
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.text("Arrêté la présente facture à la somme de:", 20, finalY + 10);
     doc.setFont("helvetica", 'bold');
     doc.text(numberToWords(total.value) + " Francs CFA", 20, finalY + 15);
@@ -440,7 +440,7 @@ const generatePDF = () => {
     doc.text(formatCurrency(reste.value), 190, finalY + 29, { align: "right" });
 
     // Signatures
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.setFont("helvetica", 'normal');
     doc.text("Signature Client", 20, finalY + 40);
     doc.text("Signature Vendeur", 150, finalY + 40);
@@ -453,7 +453,7 @@ const generatePDF = () => {
     doc.text(vendeurNom, 150, finalY + 45);
 
     // Ajout de la section garantie
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setFont("helvetica", 'normal');
     
     // Ajouter un espace après les signatures
@@ -518,6 +518,14 @@ const saveInvoice = async () => {
     if (!invoice.value.recipientType) {
       error("Veuillez sélectionner un type de destinataire");
       return;
+    }
+
+    // Vérification des informations client si c'est une facture client
+    if (invoice.value.recipientType === 'client') {
+      if (!invoice.value.client.nom || !invoice.value.client.prenom || !invoice.value.client.telephone) {
+        error("Veuillez remplir tous les champs du client (nom, prénom et téléphone)");
+        return;
+      }
     }
 
     // Vérifier le stock pour tous les articles avant de procéder
