@@ -549,8 +549,8 @@ const saveInvoice = async () => {
       nom: nomFacture,
       numero: invoice.value.number,
       created_at: new Date().toISOString(),
-      boutique: 1,
-      created_by: 1,
+      boutique: 1, // À remplacer par l'ID réel de la boutique
+      created_by: 1// À remplacer par l'ID de l'utilisateur connecté
     };
 
     const { data: facture, error: factureError } = await useApi<FactureResponse>(

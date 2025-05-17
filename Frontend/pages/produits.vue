@@ -67,7 +67,7 @@ async function supprimerProduit(deletedProduit: Produit) {
 <template>
   <section class="mt-5 px-6">
     <div class="flex items-center gap-x-4 justify-between">
-      <h2 class="text-xl md:text-3xl font-bold">Produits</h2>
+      <h2 class="text-xl md:text-3xl font-bold text-blue-400">Produits</h2>
       <creer_produit_modal @creer-produit="ajouterProduit" />
     </div>
 

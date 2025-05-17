@@ -1,9 +1,21 @@
 
 from rest_framework import viewsets, filters
+import django_filters
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import *
+from django.db.models.functions import TruncDate
 from .serializers import *
 from .permissions import *
+
+class FactureFilter(django_filters.FilterSet):
+    created_at = django_filters.DateFilter(method='filter_by_date')
+
+    class Meta:
+        model = Facture
+        fields = ['type', 'status', 'boutique', 'created_at']
+
+    def filter_by_date(self, queryset, name, value):
+        return queryset.annotate(date_only=TruncDate('created_at')).filter(date_only=value)
 
 # Boutique : uniquement superadmin peut y toucher
 class BoutiqueViewSet(viewsets.ModelViewSet):
@@ -49,7 +61,7 @@ class FactureViewSet(viewsets.ModelViewSet):
     serializer_class = FactureSerializer
     permission_classes = [IsAdminOrSuperAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['type', 'status', 'boutique']
+    filterset_class = FactureFilter  # ← On utilise notre filtre personnalisé ici
     search_fields = ['created_by__username']
     ordering_fields = ['total', 'reste', 'created_at']
 

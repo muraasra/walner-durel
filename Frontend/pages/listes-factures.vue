@@ -18,7 +18,13 @@ interface Facture {
 const factures = ref<Facture[]>([]);
 const factureSelectionnee = ref<Facture | null>(null);
 const showModal = ref(false);
-const produitsFactures = ref<string[]>([]);
+
+interface ProduitFacture {
+  nom: string;
+  prix: number;
+  quantite: number;
+}
+const produitsFactures = ref<ProduitFacture[]>([]);
 
 const totalGlobal = computed(() =>
   factures.value.reduce((acc, curr) => acc + (curr.total || 0), 0)
@@ -31,7 +37,7 @@ const totalVerse = computed(() =>
 const totalReste = computed(() =>
   factures.value.reduce((acc, curr) => acc + (curr.reste || 0), 0)
 );
-const { data, error } = useApi('http://localhost:8000/api/factures/', {
+const { data, error } = useApi('http://127.0.0.1:8000/api/factures/', {
     method: 'GET',
     server: false
 });
@@ -49,7 +55,7 @@ factures.value = Array.isArray(data.value)
       nom: facture.nom ,
       total: facture.total ?? 0,
       verse: facture.verse ?? 0,  // Vérifiez si l'API retourne ce champ
-      reste: facture.reste ?? 0
+      reste: (facture.total ?? 0) - (facture.verse ?? 0),
     }))
   : [];
 
@@ -62,15 +68,52 @@ const voirFacture = async (facture: Facture) => {
 
   const endpoint =  
     facture.type === "partenaire"
-      ? `http://localhost:8000/api/commandes-partenaire/?facture=${facture.id}`
-      : `http://localhost:8000/api/commandes-client/?facture=${facture.id}`;
+      ? `http://127.0.0.1:8000/api/commandes-partenaire/?facture=${facture.id}`
+      : `http://127.0.0.1:8000/api/commandes-client/?facture=${facture.id}`;
 
   const { data, error } = useApi(endpoint, {
     method: 'GET',
     server: false
   });
-  produitsFactures.value = (data.value as { produit: string }[]).map(cmd => cmd.produit)
+  produitsFactures.value = (data.value as { produit: string }[]).map(cmd => ({
+    nom: cmd.produit,
+    prix: cmd.prix,
+    quantite: cmd.quantite
+  }));
 };
+
+const facturePourVersement = ref<Facture | null>(null);
+const showVersementModal = ref(false);
+const payment = ref<number>(0);
+const errorMessage = ref<string | null>(null);
+
+function ajouterVersement(facture: Facture) {
+  facturePourVersement.value = facture;
+  payment.value = 0;
+  errorMessage.value = null;
+  showVersementModal.value = true;
+}
+
+async function validerVersement() {
+  if (!facturePourVersement.value) return;
+  if (payment.value <= 0) {
+    errorMessage.value = 'Entrez un montant positif.';
+    return;
+  }
+  if (payment.value > facturePourVersement.value.reste) {
+    errorMessage.value = 'Le montant dépasse le reste dû.';
+    return;
+  }
+  errorMessage.value = null;
+  // Appel API pour mettre à jour la facture
+  await useApi(`http://127.0.0.1:8000/api/factures/${facturePourVersement.value.id}`, {
+    method: 'POST',
+    body: JSON.stringify({ montant: payment.value })
+  });
+  // Recharge la liste des factures
+  // ... (refaire l'appel API pour rafraîchir factures)
+  showVersementModal.value = false;
+}
 
 </script>
 
@@ -96,7 +139,7 @@ const voirFacture = async (facture: Facture) => {
   
       <!-- Table des Fatures -->
       <div class="mt-7 w-full">
-        <table_factures :factures="factures" @voir="voirFacture"/>
+        <table_factures :factures="factures" @voir="voirFacture" @versement="ajouterVersement" />
       </div>
 
       <UModal v-model="showModal" :title="'Facture '+factureSelectionnee?.numero" :width="'80%'">
@@ -104,7 +147,7 @@ const voirFacture = async (facture: Facture) => {
     
     <!-- En-tête de la facture -->
     <div class="text-center">
-      <h2 class="text-2xl font-bold">Facture #{{ factureSelectionnee.numero }}</h2>
+      <h2 class="text-2xl font-bold text-blue-400">Facture {{ factureSelectionnee.numero }}</h2>
     </div>
 
     <!-- Informations client -->
@@ -120,10 +163,10 @@ const voirFacture = async (facture: Facture) => {
       <table class="w-full table-auto border-collapse">
         <thead class="bg-gray-100">
           <tr class="text-left">
-            <th class="border px-4 py-2">Product</th>
-            <th class="border px-4 py-2">Price</th>
-            <th class="border px-4 py-2">Qty</th>
-            <th class="border px-4 py-2">Subtotal</th>
+            <th class="border px-4 py-2">Produit(s)</th>
+            <th class="border px-4 py-2">Prix</th>
+            <th class="border px-4 py-2">Quantité</th>
+            <th class="border px-4 py-2">Sous-total</th>
           </tr>
         </thead>
         <tbody>
@@ -131,8 +174,8 @@ const voirFacture = async (facture: Facture) => {
           <tr v-for="(prod, index) in produitsFactures" :key="index">
             <td class="border px-4 py-2 capitalize">{{ prod.nom }}</td>
             <td class="border px-4 py-2">{{ prod.prix.toFixed(2) }} Fcfa</td>
-            <td class="border px-4 py-2">{{  }}</td>
-            <td class="border px-4 py-2">{{ (prod.prix * prod.qte).toFixed(2) }} Fcfa</td>
+            <td class="border px-4 py-2">{{ prod.quantite }}</td>
+            <td class="border px-4 py-2">{{ (prod.prix * prod.quantite).toFixed(2) }} Fcfa</td>
           </tr>
         </tbody>
       </table>
@@ -142,12 +185,22 @@ const voirFacture = async (facture: Facture) => {
 
     <!-- Totaux -->
     <div class="text-right text-sm space-y-1">
-      <p><strong>Total excl. tax :</strong> {{ factureSelectionnee.total.toFixed(2) }} Fcfa</p>
-      <p><strong>VAT (20%) :</strong> {{ (factureSelectionnee.total * 0.20).toFixed(2) }} Fcfa</p>
+      <!-- <p><strong>Total excl. tax :</strong> {{ factureSelectionnee.total.toFixed(2) }} Fcfa</p>
+      <p><strong>VAT (20%) :</strong> {{ (factureSelectionnee.total * 0.20).toFixed(2) }} Fcfa</p> -->
       <p class="text-xl font-bold text-red-500">
-        Total incl. tax : {{ (factureSelectionnee.total * 1.20).toFixed(2) }} Fcfa
+        Total :  {{ (factureSelectionnee.total).toFixed(2) }} Fcfa
       </p>
     </div>
+  </div>
+</UModal>
+
+<UModal v-model="showVersementModal" title="Ajouter un versement">
+  <div v-if="facturePourVersement">
+    <p>Facture n° {{ facturePourVersement.numero }} (Reste dû : {{ facturePourVersement.reste }} FCFA)</p>
+    <input v-model="payment" type="number" min="1" :max="facturePourVersement.reste" placeholder="Montant à verser" />
+    <div v-if="errorMessage" class="text-red-500">{{ errorMessage }}</div>
+    <button @click="validerVersement">Valider</button>
+    <button @click="showVersementModal = false">Annuler</button>
   </div>
 </UModal>
 
