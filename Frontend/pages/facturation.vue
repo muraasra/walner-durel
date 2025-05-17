@@ -260,7 +260,7 @@ const saveInvoice = async () => {
       numero: invoice.value.number,
       created_at: new Date().toISOString(),
       boutique: 1, // À remplacer par l'ID réel de la boutique
-      created_by: auth.user?.id // À remplacer par l'ID de l'utilisateur connecté
+      created_by: 1// À remplacer par l'ID de l'utilisateur connecté
     };
 
     // 1. Enregistrement de la facture principale
