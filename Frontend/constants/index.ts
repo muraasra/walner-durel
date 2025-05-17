@@ -85,7 +85,7 @@ export const NAVIGATION_ITEMS_ADMIN = [
     [ 
     {
       name: "Partenaires",
-      link: "/Partenaires",
+      link: "/partenaires",
       icon: "i-heroicons-user-group",
     },
     // {

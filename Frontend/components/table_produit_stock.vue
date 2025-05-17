@@ -39,26 +39,33 @@ const colonnes = [
 ];
 
 
-const { data, error } = useApi('http://127.0.0.1:8000/api/produits/', {
-    method: 'GET',
-    server: false
-});
+let produits = [];
+(async () => {
+  try {
+    const { data, error } = await useApi('http://127.0.0.1:8000/api/produits/', {
+      method: 'GET',
+      server: false
+    });
 
-if (error.value) {
-    console.error("Erreur API :", error.value);
-}
+    if (error.value) {
+      console.error("Erreur API :", error.value);
+    }
 
-const produits = Array.isArray(data.value)
-  ? data.value.map(p => ({
-      reference: p.reference,
-      nomProduit: p.nom,
-      categorie: p.category,
-      prix: p.prix,
-      description: p.description,
-      quantiteTotale: p.quantite,
-      statut: p.actif ? "Disponible" : "Non disponible",
-    }))
-  : [];
+    produits = Array.isArray(data.value)
+      ? data.value.map(p => ({
+          reference: p.reference,
+          nomProduit: p.nom,
+          categorie: p.category,
+          prix: p.prix,
+          description: p.description,
+          quantiteTotale: p.quantite,
+          statut: p.actif ? "Disponible" : "Non disponible",
+        }))
+      : [];
+  } catch (err) {
+    console.error("Erreur lors de l'appel API :", err);
+  }
+})();
 
 
 const q = ref("");
