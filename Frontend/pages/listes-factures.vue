@@ -75,7 +75,7 @@ const voirFacture = async (facture: Facture) => {
     method: 'GET',
     server: false
   });
-  ProduitsFactures.value = (data.value as { produit: string }[]).map(cmd => ({
+  produitsFactures.value = (data.value as { produit: string }[]).map(cmd => ({
     nom: cmd.produit,
     prix: cmd.prix,
     quantite: cmd.quantite
