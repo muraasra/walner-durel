@@ -132,19 +132,19 @@ interface FactureUI {
 const factures = ref<FactureUI[]>([]);
 const loading = ref(true);
 const { success, error } = useNotification();
+const  allFactures = ref<FactureUI[]>([]);
 
 // calcul dette totale
- const totalDette = computed(() => 
- {
-    return factures.value.reduce((sum, dette) => sum + dette.reste, 0)
- })
+const totalDetteGlobale = computed(() => {
+  return allFactures.value.reduce((sum, f) => sum + ((f.total ?? 0) - (f.verse ?? 0)), 0)
+});
 
-// Chargement des factures
-async function loadFactures() {
+// Chargement des factures du jour
+async function loadFacturesJour() {
   try {
     loading.value = true;
-    // const today = new Date().toISOString().split('T')[0];
-    const today = '2025-05-11';
+    const today = new Date().toISOString().split('T')[0];
+    // const today = '2025-05-11';
     console.log(`Fetching factures for date: ${today}`);
     
     const { data, error: apiError } = await useApi<FactureApi[]>(`http://127.0.0.1:8000/api/factures/?created_at=${today}`, {
@@ -187,10 +187,44 @@ async function loadFactures() {
   }
 }
 
-// Appeler la fonction au montage du composant
+// Chargement des factures globales 
+
+async function loadFacturesGlobal() {
+  try {
+    const { data, error: err } = await useApi<FactureApi[]>(`http://127.0.0.1:8000/api/factures/`, {
+      method: 'GET'
+    });
+
+    if (err.value) {
+      error('Erreur lors du chargement global');
+      return;
+    }
+
+    allFactures.value = (data.value || []).map(facture => ({
+      id: facture.id,
+      type: facture.type,
+      nom: facture.nom,
+      numero: facture.numero,
+      total: facture.total ?? 0,
+      verse: facture.verse ?? 0,
+      reste: (facture.total ?? 0) - (facture.verse ?? 0),
+      status: facture.status,
+      date: facture.created_at
+        ? new Date(facture.created_at).toLocaleDateString()
+        : 'Date inconnue'
+    }));
+  } catch (e) {
+    console.error(e);
+    error("Erreur serveur");
+  }
+}
+
+// Appeler la fonction de chargement des factures au montage du composant
 onMounted(() => {
-  loadFactures();
+  loadFacturesJour();
+  loadFacturesGlobal();
 });
+
   </script>
   
   <style scoped>
@@ -250,14 +284,14 @@ onMounted(() => {
           :value="totalAccessories" 
           icon="shopping-bag"
           color="blue"
-        />
+        /> -->
         <KpiCard 
           title="Dettes totales" 
-          :value="formatCurrency(totalDebt)" 
+          :value="formatCurrency(totalDetteGlobale )" 
           icon="credit-card"
           color="red"
           colSpan="lg:col-span-2"
-        /> -->
+        /> 
       </div>
   
       <!-- Liste des factures -->

@@ -1,40 +1,57 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import type { Partenaire } from "~/types";
+import { ref, onMounted } from "vue";
+import { useApi } from "../stores/useApi";
 
-const { data, error } = useApi('http://127.0.0.1:8000/api/partenaires/', {
-  method: 'GET',
-  server: false
-});
-
-if (error.value) {
-  console.error("Erreur API :", error.value);
+// Typage du partenaire
+interface Partenaire {
+  id: number | string;
+  nomPartenaire: string;
+  prenomPartenaire: string;
+  telephone: number;
+  status: string;
+  boutique: boolean;
+  localisationBoutique: string;
+  dateAdhesion: string;
 }
 
-const partenaires = Array.isArray(data.value)
-  ? data.value.map(p => ({
-    id: p.id,
-    nomPartenaire: p.nom,
-    prenomPartenaire: p.prenom,
-    telephone: p.telephone,
-    status: p.statut,
-    boutique: p.boutique ? true : false,
-    localisationBoutique: p.localisation,
-    dateAdhesion: p.dateadhesion,
-  }))
-  : [];
+// Liste des partenaires
+const partenaires = ref<Partenaire[]>([]);
 
+// Charger les partenaires depuis l'API
+async function chargerPartenaires() {
+  const { data, error } = await useApi("http://127.0.0.1:8000/api/partenaires/", {
+    method: "GET",
+    server: false,
+  });
 
-// État pour afficher/masquer la modale d'ajout
+  if (error.value) {
+    console.error("Erreur API :", error.value);
+    return;
+  }
+
+  partenaires.value = Array.isArray(data.value)
+    ? data.value.map(p => ({
+        id: p.id,
+        nomPartenaire: p.nom,
+        prenomPartenaire: p.prenom,
+        telephone: p.telephone,
+        status: p.statut,
+        boutique: !!p.boutique,
+        localisationBoutique: p.localisation,
+        dateAdhesion: p.dateadhesion,
+      }))
+    : [];
+}
+
+onMounted(() => {
+  chargerPartenaires();
+});
+
+// ⚙️ Ajout d’un partenaire
 const showModal = ref(false);
-
-// État pour afficher/masquer la modale de modification
 const showEditModal = ref(false);
-
-// Partenaire sélectionné pour modification
 const partenaireToEdit = ref<Partenaire | null>(null);
 
-// Modèle pour un nouveau partenaire
 const nouveauPartenaire = ref<Partenaire>({
   id: "",
   nomPartenaire: "",
@@ -46,12 +63,9 @@ const nouveauPartenaire = ref<Partenaire>({
   dateAdhesion: new Date().toISOString().split("T")[0],
 });
 
-// Fonction pour ajouter un partenaire
-const ajouterPartenaire = () => {
-  nouveauPartenaire.value.id = String(partenaires.length + 1);
-  // partenaires.push({ ...nouveauPartenaire.value });
-  const { data, error } = useApi('http://127.0.0.1:8000/api/partenaires/', {
-    method: 'POST',
+const ajouterPartenaire = async () => {
+  const { data, error } = await useApi("http://127.0.0.1:8000/api/partenaires/", {
+    method: "POST",
     body: {
       nom: nouveauPartenaire.value.nomPartenaire,
       prenom: nouveauPartenaire.value.prenomPartenaire,
@@ -61,39 +75,32 @@ const ajouterPartenaire = () => {
       dateadhesion: nouveauPartenaire.value.dateAdhesion,
       boutique: nouveauPartenaire.value.boutique,
     },
-    server: false
+    server: false,
   });
-  nouveauPartenaire.value = {
-    id: "",
-    nomPartenaire: "",
-    prenomPartenaire: "",
-    telephone: 0,
-    status: "paye",
-    boutique: false,
-    localisationBoutique: "",
-    dateAdhesion: new Date().toISOString(),
-  };
-  showModal.value = false;
-};
 
-// Fonction pour ouvrir la modale de modification
-const ouvrirModaleModification = (partenaire: Partenaire) => {
-  partenaireToEdit.value = { ...partenaire }; // Copier le partenaire sélectionné
-  showEditModal.value = true; // Ouvrir la modale de modification
-};
-
-// Fonction pour enregistrer les modifications
-const enregistrerModifications = () => {
-  if (partenaireToEdit.value) { // Vérifier que partenaireToEdit n'est pas null
-    const index = partenaires.findIndex((p) => p.id === partenaireToEdit.value?.id);
-    if (index !== -1) {
-      partenaires[index] = { ...partenaireToEdit.value }; // Mettre à jour le partenaire
-    }
-    showEditModal.value = false; // Fermer la modale
+  if (!error.value) {
+    await chargerPartenaires(); // Recharge la liste
+    showModal.value = false;
   }
 };
 
-// Colonnes de la table
+// ⚙️ Modifier un partenaire
+const ouvrirModaleModification = (partenaire: Partenaire) => {
+  partenaireToEdit.value = { ...partenaire };
+  showEditModal.value = true;
+};
+
+const enregistrerModifications = () => {
+  if (!partenaireToEdit.value) return;
+
+  const index = partenaires.value.findIndex(p => p.id === partenaireToEdit.value!.id);
+  if (index !== -1) {
+    partenaires.value[index] = { ...partenaireToEdit.value };
+    showEditModal.value = false;
+  }
+};
+
+// Colonnes
 const columns = [
   { key: "nomPartenaire", label: "Nom" },
   { key: "prenomPartenaire", label: "Prénom" },
@@ -102,9 +109,10 @@ const columns = [
   { key: "boutique", label: "Boutique" },
   { key: "localisationBoutique", label: "Localisation" },
   { key: "dateAdhesion", label: "Date d'adhésion" },
-  { key: "actions", label: "Actions" }, // Nouvelle colonne pour les actions
+  { key: "actions", label: "Actions" },
 ];
 </script>
+
 
 <template>
   <div class="mt-5 px-6">
