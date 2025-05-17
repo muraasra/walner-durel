@@ -6,6 +6,7 @@ export type Produit = {
   description: string;
   quantite: number;
   prix: number;
+  prix_achat: number;
   actif: boolean;
   boutique: number;
 };

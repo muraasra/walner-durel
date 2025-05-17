@@ -2,11 +2,21 @@
 import { z } from "zod";
 import type { FormSubmitEvent } from "#ui/types";
 import type { Product } from "~/types";
+import { useAuthStore } from '@/stores/auth'
+import { useNotification } from '~/types/useNotification';
+
+const auth = useAuthStore()
+const { success, error } = useNotification();
 
 const props = defineProps<{ product: Product }>();
 
 const isOpen = ref(false);
 const emit = defineEmits(["editer-produit"]);
+
+// Computed pour vérifier si l'utilisateur est super-admin
+const isSuperAdmin = computed(() => {
+  return auth.user?.role === 'superadmin';
+});
 
 const categoryOptions = [
   { value: "telephone", label: "Téléphone" },
@@ -45,6 +55,7 @@ const schema = z.object({
   description: z.string().min(1, "La description est requise"),
   quantite: z.number(),
   prix: z.number(),
+  prix_achat: z.number().optional(),
   actif: z.boolean(),
 });
 
@@ -57,15 +68,52 @@ const state = ref({
   description: props.product.description,
   quantite: props.product.quantite,
   prix: props.product.prix,
+  prix_achat: props.product.prix_achat || 0,
   actif: props.product.actif,
 });
 
 async function onSubmit(event: FormSubmitEvent<Schema>) {
-  isOpen.value = false;
-  emit("editer-produit", {
-    ...event.data,
-    id: props.product.id,
-  });
+  try {
+    if (!event.data.reference) {
+      error("La référence est requise");
+      return;
+    }
+    if (!event.data.nom) {
+      error("Le nom du produit est requis");
+      return;
+    }
+    if (!event.data.prix || event.data.prix <= 0) {
+      error("Le prix de vente doit être supérieur à 0");
+      return;
+    }
+    if (isSuperAdmin.value && event.data.prix_achat && event.data.prix_achat <= 0) {
+      error("Le prix d'achat doit être supérieur à 0");
+      return;
+    }
+    if (!event.data.category) {
+      error("La catégorie est requise");
+      return;
+    }
+    if (!event.data.quantite || event.data.quantite < 0) {
+      error("La quantité doit être positive ou nulle");
+      return;
+    }
+    if (!event.data.description) {
+      error("La description est requise");
+      return;
+    }
+
+    emit("editer-produit", {
+      ...event.data,
+      id: props.product.id,
+    });
+
+    success("Produit modifié avec succès!");
+    isOpen.value = false;
+  } catch (err) {
+    console.error("Erreur lors de la modification du produit:", err);
+    error("Une erreur est survenue lors de la modification du produit");
+  }
 }
 </script>
 
@@ -89,8 +137,13 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
             <UInput v-model="state.nom" placeholder="Nom du produit" />
           </UFormGroup>
 
-          <UFormGroup label="Prix" name="prix">
-            <UInput type="number" v-model="state.prix" placeholder="Prix" />
+          <UFormGroup label="Prix de vente" name="prix">
+            <UInput type="number" v-model="state.prix" placeholder="Prix de vente" />
+          </UFormGroup>
+
+          <!-- Afficher le champ prix d'achat uniquement pour les super-admin -->
+          <UFormGroup v-if="isSuperAdmin" label="Prix d'achat" name="prix_achat">
+            <UInput type="number" v-model="state.prix_achat" placeholder="Prix d'achat" />
           </UFormGroup>
 
           <UFormGroup label="Quantité" name="quantite">

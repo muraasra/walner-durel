@@ -14,6 +14,8 @@ type LoginResponse = {
   refresh: string
   user_id: number
   username: string
+  email?: string
+  role?: string
 };
 const username = ref('')
 const password = ref('')
@@ -48,7 +50,9 @@ const handleLogin = async () => {
     auth.setToken(data.value.access);
     auth.setUser({
       id: data.value.user_id ?? 0,
-      username: username.value
+      username: username.value,
+      email: data.value.email,
+      role: data.value.role
     });
 
     await nextTick();

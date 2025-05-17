@@ -4,6 +4,10 @@ import { useNotification } from '../types/useNotification';
 import { Body } from "#components";
 import { boolean } from "zod";
 import { useAuthStore } from '@/stores/auth'
+import { jsPDF } from "jspdf";
+// @ts-ignore
+import autoTable from 'jspdf-autotable';
+
 const auth = useAuthStore()
 
 
@@ -58,6 +62,7 @@ interface Product {
   nom: string;
   description: string;
   prix: number;
+  prix_achat?: number; // Prix d'achat optionnel
   category?: string;
   quantite?: number;
   actif?: boolean;
@@ -84,6 +89,26 @@ interface FactureResponse {
   id: number;
 }
 
+interface User {
+  id: number;
+  username: string;
+  email?: string;
+  role?: string;
+  nom?: string;
+  prenom?: string;
+}
+
+declare module '@/stores/auth' {
+  interface AuthStore {
+    user: {
+      id: number;
+      username: string;
+      email?: string;
+      role?: string;
+    } | null;
+  }
+}
+
 // Récupération des produits depuis l'API
 const products = ref<Product[]>([]);
 const fetchProducts = async () => {
@@ -98,7 +123,7 @@ const fetchProducts = async () => {
       return;
     }
 
-    // Mappez les données de l'API vers  Product
+    // Mappez les données de l'API vers Product
     products.value = Array.isArray(data.value)
       ? data.value.map(p => ({
         id : p.id,
@@ -106,6 +131,7 @@ const fetchProducts = async () => {
         nom: p.nom,
         description: p.description,
         prix: p.prix,
+        prix_achat: p.prix_achat,
         category: p.category,
         quantite: p.quantite,
         actif: p.actif
@@ -246,7 +272,9 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "XAF",
-  }).format(amount);
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(amount).replace(/\s/g, ' ');
 };
 
 const printInvoice = () => {
@@ -267,6 +295,216 @@ onMounted(async () => {
   await Promise.all([fetchProducts(), fetchPartners()]);
 });
 
+// Type augmentation for jsPDF
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: typeof autoTable;
+    lastAutoTable: {
+      finalY: number;
+    };
+  }
+}
+
+// Constantes pour la facture
+const COMPANY_INFO = {
+  name: "ETS WALNER TECH",
+  description: "Vente des Ordinateurs, Équipements Électroniques\nTéléphone portable et Accessoires, Import - Export\nMaintenance Ordinateur ; Installation Électronique",
+  address: "Situé au Centre Commercial PELICAN Btq 221",
+  nui: "P100017639977 B",
+  phones: ["656 89 47 73", "651 70 97 52"],
+  notice: "Les Marchandises vendues ne sont ni reprises ni échangées",
+  warranty: "Garantie Produit – Service Après-Vente\nCe produit est couvert par une garantie de 6 mois à compter de la date d'achat figurant sur cette facture.\nEn cas de dysfonctionnement non causé par une mauvaise utilisation, vous pouvez bénéficier d'un service après-vente en présentant cette facture.\n\n⚠ Cette garantie couvre uniquement les défauts de fabrication et ne s'applique pas aux dommages physiques ou à l'usure normale.\n\nPour toute demande de prise en charge, contactez notre service client."
+};
+
+// Fonction pour générer le PDF
+const generatePDF = () => {
+  try {
+    const doc = new jsPDF();
+    
+    // En-tête avec fond bleu clair
+    doc.setFillColor(0, 120, 212); // Bleu WALNER TECH
+    doc.rect(0, 0, 210, 40, 'F');
+    
+    // Ajouter le logo
+    try {
+      doc.addImage('/img/logo.jpg', 'JPEG', 10, 5, 30, 30);
+    } catch (err) {
+      console.error("Erreur lors du chargement du logo:", err);
+    }
+
+    // Informations de l'entreprise en blanc
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.text(COMPANY_INFO.name, 45, 15);
+    
+    // Description de l'entreprise
+    doc.setFontSize(8);
+    const descriptionLines = COMPANY_INFO.description.split('\n');
+    let yPos = 20;
+    descriptionLines.forEach(line => {
+      doc.text(line, 45, yPos);
+      yPos += 5;
+    });
+    
+    // Adresse et NUI
+    doc.text(COMPANY_INFO.address, 45, yPos);
+    doc.text(`NUI: ${COMPANY_INFO.nui}  Tél.: ${COMPANY_INFO.phones.join(' / ')}`, 45, yPos + 5);
+
+    // Titre FACTURE
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(14);
+    doc.text("FACTURE N°", 140, 15);
+    doc.text(invoice.value.number, 170, 15);
+
+    // Date et informations client
+    doc.setFontSize(10);
+    doc.text(`Date: ${new Date(invoice.value.date).toLocaleDateString()}`, 140, 25);
+
+    // Section client
+    doc.setFontSize(10);
+    doc.text("Doit M.", 20, 55);
+    if (invoice.value.recipientType === 'client') {
+      const clientName = `${invoice.value.client.prenom} ${invoice.value.client.nom}`;
+      doc.text(clientName, 40, 55);
+      doc.text(`Tél: ${invoice.value.client.telephone}`, 140, 55);
+    } else {
+      doc.text(invoice.value.partenaire, 40, 55);
+    }
+
+    // Tableau des articles avec bordure
+    const tableColumn = [
+      "REF",
+      "QTE",
+      "DESIGNATION",
+      "P.UNIT",
+      "P.TOTAL"
+    ];
+    const tableRows = invoice.value.items.map(item => [
+      item.reference,
+      item.quantity,
+      item.name,
+      formatCurrency(item.price),
+      formatCurrency(item.price * item.quantity)
+    ]);
+    
+    // Appliquer autoTable au document
+    autoTable(doc, {
+      startY: 65,
+      head: [tableColumn],
+      body: tableRows,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 120, 212],
+        fontSize: 10,
+        halign: 'center',
+        textColor: [255, 255, 255]
+      },
+      bodyStyles: {
+        fontSize: 9,
+        halign: 'left'
+      },
+      columnStyles: {
+        0: { cellWidth: 25, halign: 'center' }, // REF
+        1: { cellWidth: 15, halign: 'center' }, // QTE
+        2: { cellWidth: 80 }, // DESIGNATION
+        3: { cellWidth: 35, halign: 'right' }, // P.UNIT
+        4: { cellWidth: 35, halign: 'right' }  // P.TOTAL
+      }
+    });
+
+    // Récupération de la position Y après le tableau
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Notice
+    doc.setFontSize(8);
+    doc.text(COMPANY_INFO.notice, 20, finalY);
+
+    // Total en lettres
+    doc.setFontSize(10);
+    doc.text("Arrêté la présente facture à la somme de:", 20, finalY + 10);
+    doc.setFont("helvetica", 'bold');
+    doc.text(numberToWords(total.value) + " Francs CFA", 20, finalY + 15);
+
+    // Total en chiffres
+    doc.setFontSize(12);
+    doc.setFont("helvetica", 'bold');
+    doc.text("TOTAL", 140, finalY + 15);
+    doc.text(formatCurrency(total.value), 190, finalY + 15, { align: "right" });
+
+    // Montant versé et reste
+    doc.setFontSize(10);
+    doc.setFont("helvetica", 'normal');
+    doc.text("Montant versé:", 140, finalY + 22);
+    doc.text(formatCurrency(invoice.value.montantVerse), 190, finalY + 22, { align: "right" });
+    doc.text("Reste à payer:", 140, finalY + 29);
+    doc.text(formatCurrency(reste.value), 190, finalY + 29, { align: "right" });
+
+    // Signatures
+    doc.setFontSize(10);
+    doc.setFont("helvetica", 'normal');
+    doc.text("Signature Client", 20, finalY + 40);
+    doc.text("Signature Vendeur", 150, finalY + 40);
+    
+    // Nom du vendeur
+    doc.setFontSize(8);
+    const vendeurNom = auth.user?.username ? 
+      `Vendeur: ${auth.user.username}` :
+      'Vendeur: Non spécifié';
+    doc.text(vendeurNom, 150, finalY + 45);
+
+    // Ajout de la section garantie
+    doc.setFontSize(8);
+    doc.setFont("helvetica", 'normal');
+    
+    // Ajouter un espace après les signatures
+    const warrantyY = finalY + 55;
+    
+    // Dessiner un rectangle gris clair pour la section garantie
+    doc.setFillColor(245, 245, 245);
+    doc.rect(20, warrantyY, 170, 40, 'F');
+    
+    // Ajouter le texte de garantie
+    doc.setTextColor(0, 0, 0);
+    const warrantyLines = COMPANY_INFO.warranty.split('\n');
+    let currentY = warrantyY + 5;
+    
+    // Calculer la largeur maximale disponible
+    const maxWidth = 160; // Largeur du rectangle - marges
+    
+    warrantyLines.forEach((line, index) => {
+      if (line.includes('⚠')) {
+        doc.setFont("helvetica", 'bold');
+      } else if (index === 0) {
+        doc.setFont("helvetica", 'bold');
+      } else {
+        doc.setFont("helvetica", 'normal');
+      }
+      
+      // Diviser le texte en lignes si nécessaire pour éviter le dépassement
+      const splitLines = doc.splitTextToSize(line, maxWidth);
+      splitLines.forEach((splitLine: string) => {
+        doc.text(splitLine, 25, currentY);
+        currentY += 5;
+      });
+    });
+
+    // Sauvegarde du PDF
+    doc.save(`${invoice.value.number}.pdf`);
+    return true;
+  } catch (err) {
+    console.error("Erreur lors de la génération du PDF:", err);
+    return false;
+  }
+};
+
+// Fonction pour convertir un nombre en lettres
+const numberToWords = (number: number): string => {
+  // Cette fonction devrait être implémentée pour convertir les nombres en lettres
+  // Pour l'instant, retourne une chaîne simple
+  return number.toString();
+};
+
+// Modification de la fonction saveInvoice pour inclure la génération du PDF
 const saveInvoice = async () => {
   const { success, error } = useNotification();
 
@@ -378,19 +616,26 @@ const saveInvoice = async () => {
         }
       }
 
-      if (isSuccess) {
-        success(`Facture client ${invoice.value.number} enregistrée`);
+    if (isSuccess) {
+        // Générer le PDF
+      const pdfGenerated = generatePDF();
+      if (pdfGenerated) {
+          success(`Facture client ${invoice.value.number} enregistrée et téléchargée`);
+      } else {
+        error("Erreur lors de la génération du PDF");
+      }
+      
         // Réinitialiser le formulaire
-        invoice.value = {
-          number: generateInvoiceNumber(),
-          date: new Date().toISOString().split("T")[0],
-          recipientType: "",
-          client: { nom: "", prenom: "", telephone: "" },
-          partenaire: "",
-          items: [],
-          taxRate: 10,
-          montantVerse: 0,
-        };
+      invoice.value = {
+        number: generateInvoiceNumber(),
+        date: new Date().toISOString().split("T")[0],
+        recipientType: "",
+        client: { nom: "", prenom: "", telephone: "" },
+        partenaire: "",
+        items: [],
+        taxRate: 10,
+        montantVerse: 0,
+      };
       }
 
     } else {
@@ -447,7 +692,14 @@ const saveInvoice = async () => {
       }
 
       if (isSuccess) {
-        success(`Facture partenaire ${invoice.value.number} enregistrée`);
+        // Générer le PDF
+        const pdfGenerated = generatePDF();
+        if (pdfGenerated) {
+          success(`Facture partenaire ${invoice.value.number} enregistrée et téléchargée`);
+        } else {
+          error("Erreur lors de la génération du PDF");
+        }
+
         // Réinitialiser le formulaire
         invoice.value = {
           number: generateInvoiceNumber(),
@@ -539,29 +791,29 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
         </div>
 
         <!-- Invoice Items -->
-        <div class="mb-6">
-          <h2 class="text-xl font-semibold text-blue-400 mb-3">
-            Articles de la Facture
-          </h2>
+    <div class="mb-6">
+      <h2 class="text-xl font-semibold text-blue-400 mb-3">
+        Articles de la Facture
+      </h2>
 
-          <!-- Recherche de produit avec suggestions -->
+      <!-- Recherche de produit avec suggestions -->
           <div class="relative mb-4">
-            <UInput 
-              v-model="searchQuery"
-              color="blue"
-              variant="outline"
-              placeholder="Rechercher un produit par référence ou nom"
-              class="w-full"
-              @focus="showProductSearch = true"
+        <UInput 
+          v-model="searchQuery"
+          color="blue"
+          variant="outline"
+          placeholder="Rechercher un produit par référence ou nom"
+          class="w-full"
+          @focus="showProductSearch = true"
               @blur="async () => { await delay(200); showProductSearch = false }"
-            />
-            
-            <!-- Liste des suggestions -->
-            <div v-if="showProductSearch && filteredProducts.length > 0" 
-                 class="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
-              <div v-for="product in filteredProducts" 
-                   :key="product.id"
-                   @click="selectProduct(product)"
+        />
+        
+        <!-- Liste des suggestions -->
+        <div v-if="showProductSearch && filteredProducts.length > 0" 
+             class="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          <div v-for="product in filteredProducts" 
+               :key="product.id"
+               @click="selectProduct(product)"
                    class="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b dark:border-gray-700">
                 <div class="flex justify-between items-center">
                   <div>

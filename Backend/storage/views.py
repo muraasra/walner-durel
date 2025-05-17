@@ -10,6 +10,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['user_id'] = self.user.id
         data['username'] = self.user.username
         data['email'] = self.user.email  # optionnel
+        data['role'] = self.user.role  # Ajout du rôle de l'utilisateur
         return data
 
 class CustomTokenObtainPairView(TokenObtainPairView):
