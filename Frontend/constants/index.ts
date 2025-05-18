@@ -34,6 +34,13 @@ export const NAVIGATION_ITEMS = [
       icon: "i-heroicons-power",
     },
   ],
+  // [
+  //   {
+  //     name: "Guide",
+  //     link: "/guide",
+  //     icon: "i-heroicons-book-open",
+  //   },
+  // ],
 ];
 
 export const NAVIGATION_ITEMS_ADMIN = [
@@ -74,6 +81,13 @@ export const NAVIGATION_ITEMS_ADMIN = [
       name: "Transfert",
       link: "/transfert",
       icon: "i-heroicons-arrows-right-left",
+    },
+  ],
+  [
+    {
+      name: "Guide",
+      link: "/guide",
+      icon: "i-heroicons-book-open",
     },
   ],
   [
@@ -135,6 +149,13 @@ export const NAVIGATION_ITEMS_SUPERADMIN = [
       name: "Transfert",
       link: "/transfert",
       icon: "i-heroicons-arrows-right-left",
+    },
+  ],
+  [
+    {
+      name: "Guide",
+      link: "/guide",
+      icon: "i-heroicons-book-open",
     },
   ],
   [
