@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { useAuthStore } from '@/stores/auth'
+
 defineProps<{
   product: {
     id: number;
@@ -8,10 +10,30 @@ defineProps<{
     description: string;
     quantite: number;
     prix: number;
+    prix_achat?: number;
     actif: boolean;
     boutique: number;
   };
 }>();
+
+const user = ref(null);
+
+if (process.client) {
+  const userData = localStorage.getItem('user');
+  if (userData) {
+    user.value = JSON.parse(userData);
+  }
+}
+
+const userRole = computed(() => user.value?.role || "user");
+
+// const auth = useAuthStore()
+
+// Computed pour vérifier si l'utilisateur est super-admin
+const isSuperAdmin = computed(() => {
+  console.log('User role:', userRole.value);
+  return userRole.value === "superadmin";
+});
 
 const isOpen = ref(false);
 </script>
@@ -33,7 +55,8 @@ const isOpen = ref(false);
           <UBadge class="mb-3" color="blue">
             {{ product.category }}
           </UBadge>
-          <h4 class="text-blue-400 font-bold">Prix: {{ product.prix }} XAF</h4>
+          <h4 class="text-blue-400 font-bold">Prix de vente: {{ product.prix }} XAF</h4>
+          <h4 v-if="isSuperAdmin && product.prix_achat" class="text-green-600 font-bold">Prix d'achat: {{ product.prix_achat }} XAF</h4>
           <h4>Quantité: {{ product.quantite }}</h4>
           <h4>Référence: {{ product.reference }}</h4>
           <h4 class="mt-2 font-semibold">Description :</h4>

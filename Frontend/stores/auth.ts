@@ -2,8 +2,15 @@ import { defineStore } from 'pinia'
 import { useCookie } from '#app'
 import { ref } from 'vue'
 
+interface User {
+  id: number;
+  username: string;
+  email?: string;
+  role?: string;
+}
+
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<{ id: number; username: string } | null>(null)
+  const user = ref<User | null>(null)
 
   const cookieToken = useCookie<string | null>('auth_token', {
     default: () => null,
@@ -21,7 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function setUser(data: { id: number; username: string ; }) {
+  function setUser(data: User) {
     user.value = data
     if (process.client) {
       localStorage.setItem('user', JSON.stringify(data))

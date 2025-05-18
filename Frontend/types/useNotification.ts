@@ -6,7 +6,7 @@ export const useNotification = () => {
     duration: number
   }[]);
 
-  const addToast = (message: string, type: 'success' | 'error' | 'info' = 'info', duration = 5000) => {
+  const addToast = (message: string, type: 'success' | 'error' | 'info' = 'info', duration = 3000) => {
     const id = `toast-${Date.now()}`;
     const toast = { id, message, type, duration };
     toasts.value.push(toast);
