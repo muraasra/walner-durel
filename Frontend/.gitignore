@@ -22,3 +22,8 @@ logs
 .env
 .env.*
 !.env.example
+
+# Lock files
+package-lock.json
+yarn.lock
+# Ne pas ignorer pnpm-lock.yaml car il est nécessaire pour Netlify
