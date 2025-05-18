@@ -1,9 +1,11 @@
 [build]
-  command = "pnpm run build"
+  command = "pnpm run prepare:netlify && pnpm run build"
   publish = ".output/public"
 
 [build.environment]
   NODE_VERSION = "18"
+  NPM_FLAGS = "--no-frozen-lockfile"
+  PNPM_FLAGS = "--no-frozen-lockfile"
 
 [[redirects]]
   from = "/*"
