@@ -85,20 +85,29 @@ watch([q, plageDatesSelectionnee], () => {
       <template #total-data="{ row }">{{ row.total }} FCFA</template>
       <template #verse-data="{ row }">{{ row.verse }} FCFA</template>
       <template #reste-data="{ row }">{{ row.reste }} FCFA</template>
-      <!-- <template #produits-data="{ row }">
-        <ul>
-          <li v-for="produit in row.produits" :key="produit">{{ produit }}</li>
-        </ul>
-      </template> -->
-      <!-- <template #actions-data="{ row }">
-          <UButton color="blue" @click="nouveauVersement(row)">Versement</UButton>
-        </template> -->
-        <!-- Colonne personnalisée pour les actions -->
-        <template #action-data="{ row }">
-          <UButton color="blue" class="mr-2" @click="$emit('versement',row)">Versement</UButton>
-          <UButton color="green" @click="$emit('voir',row)">voir</UButton>
-        </template>
-        <!-- Colonne personnalisée pour les actions -->
+      <template #status-data="{ row }">
+        <span
+          :class="[
+            'inline-block px-3 py-1 text-xs font-semibold rounded-full',
+            row.status === 'payé'
+              ? 'bg-green-100 text-green-700'
+              : 'bg-red-100 text-red-700'
+          ]"
+        >
+          {{ row.status }}
+        </span>
+      </template>
+      <template #action-data="{ row }">
+        <UButton
+          v-if="row.reste > 0 && row.status !== 'payé'"
+          color="blue"
+          class="mr-2"
+          @click="$emit('versement', row)"
+        >
+        Versement
+        </UButton>
+        <UButton color="green" @click="$emit('voir', row)">voir</UButton>
+      </template>
     </UTable>
 
     <div class="flex justify-end px-3 py-3.5 border-t border-gray-200 dark:border-gray-700">

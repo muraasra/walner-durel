@@ -12,16 +12,6 @@ export const NAVIGATION_ITEMS = [
       link: "/stock_produit",
       icon: "i-heroicons-square-2-stack",
     },
-    // {
-    //   name: "Liste des Commandes",
-    //   link: "/liste-ordres",
-    //   icon: "i-heroicons-list-bullet",
-    // },
-    // {
-    //   name: "Commandes des Partenaires",
-    //   link: "/commandes_partenaires",
-    //   icon: "i-heroicons-clipboard-document-list",
-    // },
   ],
   [
     {
@@ -54,6 +44,55 @@ export const NAVIGATION_ITEMS = [
 export const NAVIGATION_ITEMS_ADMIN = [
   [
     {
+      name: "Produits",
+      link: "/produits",
+      icon: "i-heroicons-squares-plus",
+    },
+
+    {
+      name: "Stock des Produits",
+      link: "/stock_produit",
+      icon: "i-heroicons-square-2-stack",
+    },
+  ],
+    [ 
+    {
+      name: "Partenaires",
+      link: "/partenaires",
+      icon: "i-heroicons-user-group",
+    },
+  ],
+  [ 
+    {
+      name: "Facturation",
+      link: "/facturation",
+      icon: "i-heroicons-document-currency-dollar",
+    },    
+    {
+      name: "Liste des factures",
+      link: "/listes-factures",
+      icon: "i-heroicons-clipboard-document-list",
+    },
+  ],
+  [
+    {
+      name: "Transfert",
+      link: "/transfert",
+      icon: "i-heroicons-arrows-right-left",
+    },
+  ],
+  [
+    {
+      name: "Logout",
+      link: "",
+      icon: "i-heroicons-power",
+    },
+  ],
+];
+
+export const NAVIGATION_ITEMS_SUPERADMIN = [
+  [
+    {
       name: "Dashboard",
       link: "/",
       icon: "i-heroicons-rectangle-group",
@@ -64,11 +103,6 @@ export const NAVIGATION_ITEMS_ADMIN = [
       icon: "i-heroicons-squares-plus",
     },
 
-    // {
-    //   name: "Liste des Commandes",
-    //   link: "/liste-ordres",
-    //   icon: "i-heroicons-list-bullet",
-    // },
     {
       name: "Stock des Produits",
       link: "/stock_produit",
@@ -88,11 +122,6 @@ export const NAVIGATION_ITEMS_ADMIN = [
       link: "/partenaires",
       icon: "i-heroicons-user-group",
     },
-    // {
-    //   name: "Commandes des Partenaires",
-    //   link: "/commandes_partenaires",
-    //   icon: "i-heroicons-clipboard-document-list",
-    // },
   ],
   [ 
     {

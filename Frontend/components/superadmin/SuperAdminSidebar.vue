@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NAVIGATION_ITEMS_ADMIN } from "~/constants";
+import { NAVIGATION_ITEMS_SUPERADMIN } from "~/constants";
 // Fonction de déconnexion
 import { useAuthStore } from '~/stores/auth'
 const auth = useAuthStore();
@@ -15,11 +15,11 @@ function handleLogout() {
     >
       <div class="flex items-center justify-center">
         <NuxtLink href="/" class="text-lg md:text-2xl font-extrabold pb-3"
-          ><span class="text-blue-400">Walner</span>Tech Admin </NuxtLink>
+          ><span class="text-blue-400">Walner</span>Tech Super Admin </NuxtLink>
       </div>
       <div class="px-1 mt-4">
         <div
-          v-for="navigation in NAVIGATION_ITEMS_ADMIN"
+          v-for="navigation in NAVIGATION_ITEMS_SUPERADMIN"
           class="space-y-1 mb-3 pb-3 border-b last:border-b-0 dark:border-b-gray-600 border-b-gray-200"
         >
           <NuxtLink

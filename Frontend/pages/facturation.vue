@@ -313,182 +313,141 @@ const COMPANY_INFO = {
   nui: "P100017639977 B",
   phones: ["656 89 47 73", "651 70 97 52"],
   notice: "Les Marchandises vendues ne sont ni reprises ni échangées",
-  warranty: "Garantie Produit – Service Après-Vente\nCe produit est couvert par une garantie de 6 mois à compter de la date d'achat figurant sur cette facture.\nEn cas de dysfonctionnement non causé par une mauvaise utilisation, vous pouvez bénéficier d'un service après-vente en présentant cette facture.\n\n⚠ Cette garantie couvre uniquement les défauts de fabrication et ne s'applique pas aux dommages physiques ou à l'usure normale.\n\nPour toute demande de prise en charge, contactez notre service client."
+  warranty: "Garantie Produit – Service Après-Vente\nCe produit est couvert par une garantie de 6 mois à compter de la date d'achat figurant sur cette facture.\nEn cas de dysfonctionnement non causé par une mauvaise utilisation, vous pouvez bénéficier d'un service après-vente en présentant cette facture.\n\n Cette garantie couvre uniquement les défauts de fabrication et ne s'applique pas aux dommages physiques ou à l'usure normale.\n\nPour toute demande de prise en charge, contactez notre service client."
 };
 
 // Fonction pour générer le PDF
 const generatePDF = () => {
   try {
     const doc = new jsPDF();
-    
-    // En-tête avec fond bleu clair
-    doc.setFillColor(0, 120, 212); // Bleu WALNER TECH
-    doc.rect(0, 0, 210, 40, 'F');
-    
-    // Ajouter le logo
+
+    // --- En-tête entreprise ---
+    // Bandeau bleu clair
+    doc.setFillColor(0, 120, 212);
+    doc.rect(0, 0, 210, 30, 'F');
+
+    // Logo (optionnel)
     try {
-      doc.addImage('/img/logo.jpg', 'JPEG', 10, 5, 30, 30);
+      doc.addImage('/img/logo.jpg', 'JPEG', 10, 5, 20, 20);
     } catch (err) {
-      console.error("Erreur lors du chargement du logo:", err);
+      // ignore si pas de logo
     }
 
-    // Informations de l'entreprise en blanc
+    // Nom entreprise
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.text(COMPANY_INFO.name, 45, 15);
-    
-    // Description de l'entreprise
-    doc.setFontSize(8);
-    const descriptionLines = COMPANY_INFO.description.split('\n');
-    let yPos = 20;
-    descriptionLines.forEach(line => {
-      doc.text(line, 45, yPos);
-      yPos += 5;
-    });
-    
+    doc.setFont('times', 'bold');
+    doc.setFontSize(18);
+    doc.text(COMPANY_INFO.name, 35, 15);
+
     // Adresse et NUI
-    doc.text(COMPANY_INFO.address, 45, yPos);
-    doc.text(`NUI: ${COMPANY_INFO.nui}  Tél.: ${COMPANY_INFO.phones.join(' / ')}`, 45, yPos + 5);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(COMPANY_INFO.address, 35, 22);
+    doc.text(`NUI: ${COMPANY_INFO.nui}  Tél.: ${COMPANY_INFO.phones.join(' / ')}`, 35, 27);
 
-    // Titre FACTURE
+    // --- Titre facture ---
+    doc.setTextColor(0, 120, 212);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`FACTURE N° ${invoice.value.number}`, 150, 15, { align: 'right' });
+
+    // --- Infos client/partenaire et date ---
     doc.setTextColor(0, 0, 0);
-    doc.setFontSize(14);
-    doc.text("FACTURE N°", 140, 15);
-    doc.text(invoice.value.number, 170, 15);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Date : ${new Date(invoice.value.date).toLocaleDateString()}`, 150, 22, { align: 'right' });
 
-    // Date et informations client
-    doc.setFontSize(10);
-    doc.text(`Date: ${new Date(invoice.value.date).toLocaleDateString()}`, 140, 25);
-
-    // Section client
-    doc.setFontSize(10);
-    doc.text("Doit M.", 20, 55);
+    let y = 35;
+    doc.setFontSize(11);
     if (invoice.value.recipientType === 'client') {
-      const clientName = `${invoice.value.client.prenom} ${invoice.value.client.nom}`;
-      doc.text(clientName, 40, 55);
-      doc.text(`Tél: ${invoice.value.client.telephone}`, 140, 55);
+      doc.text(`Client : ${invoice.value.client.prenom} ${invoice.value.client.nom}`, 10, y);
+      doc.text(`Téléphone : ${invoice.value.client.telephone}`, 10, y + 6);
     } else {
-      doc.text(invoice.value.partenaire, 40, 55);
+      doc.text(`Partenaire : ${invoice.value.partenaire}`, 10, y);
     }
 
-    // Tableau des articles avec bordure
-    const tableColumn = [
-      "REF",
-      "QTE",
-      "DESIGNATION",
-      "P.UNIT",
-      "P.TOTAL"
-    ];
-    const tableRows = invoice.value.items.map(item => [
-      item.reference,
-      item.quantity,
-      item.name,
-      formatCurrency(item.price),
-      formatCurrency(item.price * item.quantity)
-    ]);
-    
-    // Appliquer autoTable au document
+    // --- Tableau des articles ---
+    y += 14;
     autoTable(doc, {
-      startY: 65,
-      head: [tableColumn],
-      body: tableRows,
+      startY: y,
+      head: [[
+        "Référence", "Désignation", "Prix unitaire", "Quantité", "Total"
+      ]],
+      body: invoice.value.items.map(item => [
+        item.reference,
+        item.name,
+        formatCurrency(item.price),
+        item.quantity,
+        formatCurrency(item.price * item.quantity)
+      ]),
       theme: 'grid',
       headStyles: {
         fillColor: [0, 120, 212],
-        fontSize: 10,
-        halign: 'center',
-        textColor: [255, 255, 255]
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 11,
+        halign: 'center'
       },
       bodyStyles: {
-        fontSize: 9,
-        halign: 'left'
+        fontSize: 10,
+        halign: 'center'
       },
-      columnStyles: {
-        0: { cellWidth: 25, halign: 'center' }, // REF
-        1: { cellWidth: 15, halign: 'center' }, // QTE
-        2: { cellWidth: 80 }, // DESIGNATION
-        3: { cellWidth: 35, halign: 'right' }, // P.UNIT
-        4: { cellWidth: 35, halign: 'right' }  // P.TOTAL
-      }
+      styles: {
+        cellPadding: 3,
+        lineColor: [220, 220, 220],
+        lineWidth: 0.5,
+        font: 'helvetica'
+      },
+      alternateRowStyles: { fillColor: [245, 250, 255] },
+      margin: { left: 10, right: 10 }
     });
 
-    // Récupération de la position Y après le tableau
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
-
-    // Notice
-    doc.setFontSize(8);
-    doc.text(COMPANY_INFO.notice, 20, finalY);
-
-    // Total en lettres
-    doc.setFontSize(10);
-    doc.text("Arrêté la présente facture à la somme de:", 20, finalY + 10);
-    doc.setFont("helvetica", 'bold');
-    doc.text(numberToWords(total.value) + " Francs CFA", 20, finalY + 15);
-
-    // Total en chiffres
+    // --- Totaux et paiement ---
+    let finalY = (doc as any).lastAutoTable.finalY + 10;
     doc.setFontSize(12);
-    doc.setFont("helvetica", 'bold');
-    doc.text("TOTAL", 140, finalY + 15);
-    doc.text(formatCurrency(total.value), 190, finalY + 15, { align: "right" });
-
-    // Montant versé et reste
-    doc.setFontSize(10);
-    doc.setFont("helvetica", 'normal');
-    doc.text("Montant versé:", 140, finalY + 22);
-    doc.text(formatCurrency(invoice.value.montantVerse), 190, finalY + 22, { align: "right" });
-    doc.text("Reste à payer:", 140, finalY + 29);
-    doc.text(formatCurrency(reste.value), 190, finalY + 29, { align: "right" });
-
-    // Signatures
-    doc.setFontSize(10);
-    doc.setFont("helvetica", 'normal');
-    doc.text("Signature Client", 20, finalY + 40);
-    doc.text("Signature Vendeur", 150, finalY + 40);
-    
-    // Nom du vendeur
-    doc.setFontSize(8);
-    const vendeurNom = auth.user?.username ? 
-      `Vendeur: ${auth.user.username}` :
-      'Vendeur: Non spécifié';
-    doc.text(vendeurNom, 150, finalY + 45);
-
-    // Ajout de la section garantie
-    doc.setFontSize(8);
-    doc.setFont("helvetica", 'normal');
-    
-    // Ajouter un espace après les signatures
-    const warrantyY = finalY + 55;
-    
-    // Dessiner un rectangle gris clair pour la section garantie
-    doc.setFillColor(245, 245, 245);
-    doc.rect(20, warrantyY, 170, 40, 'F');
-    
-    // Ajouter le texte de garantie
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 120, 212);
+    doc.text("TOTAL", 150, finalY);
     doc.setTextColor(0, 0, 0);
-    const warrantyLines = COMPANY_INFO.warranty.split('\n');
-    let currentY = warrantyY + 5;
-    
-    // Calculer la largeur maximale disponible
-    const maxWidth = 160; // Largeur du rectangle - marges
-    
-    warrantyLines.forEach((line, index) => {
-      if (line.includes('⚠')) {
-        doc.setFont("helvetica", 'bold');
-      } else if (index === 0) {
-        doc.setFont("helvetica", 'bold');
-      } else {
-        doc.setFont("helvetica", 'normal');
-      }
-      
-      // Diviser le texte en lignes si nécessaire pour éviter le dépassement
-      const splitLines = doc.splitTextToSize(line, maxWidth);
-      splitLines.forEach((splitLine: string) => {
-        doc.text(splitLine, 25, currentY);
-        currentY += 5;
-      });
-    });
+    doc.text(formatCurrency(total.value), 200, finalY, { align: "right" });
 
-    // Sauvegarde du PDF
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Montant versé :", 150, finalY + 8);
+    doc.text(formatCurrency(invoice.value.montantVerse), 200, finalY + 8, { align: "right" });
+    doc.text("Reste à payer :", 150, finalY + 16);
+    doc.text(formatCurrency(reste.value), 200, finalY + 16, { align: "right" });
+
+// --- Notice ---
+doc.setFontSize(9);
+doc.setTextColor(100, 100, 100);
+doc.text(COMPANY_INFO.notice, 10, finalY + 28);
+
+// --- Garantie (rectangle gris, texte wrap, hauteur dynamique) ---
+doc.setFontSize(8);
+doc.setTextColor(0, 0, 0);
+const warrantyLines = doc.splitTextToSize(COMPANY_INFO.warranty, 180);
+const warrantyBoxY = finalY + 35;
+const lineHeight = 4;
+const warrantyBoxHeight = warrantyLines.length * lineHeight + 8; // 8px de padding vertical
+
+doc.setFillColor(245, 245, 245);
+doc.roundedRect(10, warrantyBoxY, 190, warrantyBoxHeight, 3, 3, 'F');
+
+let warrantyTextY = warrantyBoxY + 5;
+warrantyLines.forEach(line => {
+  doc.text(line, 15, warrantyTextY);
+  warrantyTextY += lineHeight;
+});
+
+// --- Signatures (toujours sous la garantie, jamais dessus) ---
+const signatureY = warrantyBoxY + warrantyBoxHeight + 10;
+doc.setFontSize(10);
+doc.setTextColor(0, 0, 0);
+doc.text("Signature Client", 20, signatureY);
+doc.text("Signature Vendeur", 150, signatureY);
+
+    // --- Sauvegarde ---
     doc.save(`${invoice.value.number}.pdf`);
     return true;
   } catch (err) {
