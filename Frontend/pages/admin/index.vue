@@ -9,7 +9,7 @@
         Bienvenue sur le Dashboard<br>
         <span class="text-gray-800">Admin</span>
         <span class="block text-base font-normal text-gray-400 mt-2">
-          Gestionnaire de stockage Walner Tech
+          Gestionnaire de stock Walner Tech
         </span>
       </h1>
       <p class="mb-8 text-gray-600">

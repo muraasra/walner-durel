@@ -21,7 +21,7 @@ class FactureFilter(django_filters.FilterSet):
 class BoutiqueViewSet(viewsets.ModelViewSet):
     queryset = Boutique.objects.all()
     serializer_class = BoutiqueSerializer
-    # permission_classes = [IsSuperAdmin]
+    permission_classes = [IsAdminOrSuperAdmin]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['nom', 'ville']
     ordering_fields = ['nom']
@@ -41,7 +41,7 @@ class ProduitViewSet(viewsets.ModelViewSet):
 class PrixProduitViewSet(viewsets.ModelViewSet):
     queryset = PrixProduit.objects.all()
     serializer_class = PrixProduitSerializer
-    permission_classes = [IsSuperAdmin]
+    permission_classes = [IsAdminOrSuperAdmin]
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ['produit']
     ordering_fields = ['date', 'prix_vente_yen']
@@ -50,7 +50,7 @@ class PrixProduitViewSet(viewsets.ModelViewSet):
 class PartenaireViewSet(viewsets.ModelViewSet):
     queryset = Partenaire.objects.all()
     serializer_class = PartenaireSerializer
-    # permission_classes = [IsAdminOrSuperAdmin]
+    permission_classes = [IsAdminOrSuperAdmin]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['boutique']
     search_fields = ['nom']

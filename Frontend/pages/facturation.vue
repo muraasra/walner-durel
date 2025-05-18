@@ -96,16 +96,12 @@ interface User {
   role?: string;
   nom?: string;
   prenom?: string;
+  boutique?: number;
 }
 
 declare module '@/stores/auth' {
   interface AuthStore {
-    user: {
-      id: number;
-      username: string;
-      email?: string;
-      role?: string;
-    } | null;
+    user: User | null;
   }
 }
 
@@ -468,7 +464,13 @@ const saveInvoice = async () => {
   const { success, error } = useNotification();
 
   try {
-    const userId = auth.user?.id?.toString() || '1';
+    // Utiliser l'ID de l'utilisateur connecté pour created_by
+    const userId = auth.user?.id; 
+    if (!userId) { // Vérifier si l'utilisateur est connecté
+        error("Utilisateur non connecté.");
+        return;
+    }
+
     if (invoice.value.items.length === 0) {
       error("Veuillez ajouter au moins un article");
       return;
@@ -507,9 +509,8 @@ const saveInvoice = async () => {
       status: reste.value > 0 ? 'encours' : 'payé',
       nom: nomFacture,
       numero: invoice.value.number,
-      created_at: new Date().toISOString(),
-      boutique: 1, // À remplacer par l'ID réel de la boutique
-      created_by: 1// À remplacer par l'ID de l'utilisateur connecté
+      boutique: auth.user?.boutique || 1, 
+      created_by: userId
     };
 
     const { data: facture, error: factureError } = await useApi<FactureResponse>(
