@@ -105,6 +105,17 @@ declare module '@/stores/auth' {
   }
 }
 
+const user = ref(null);
+
+if (process.client) {
+  const userData = localStorage.getItem('user');
+  if (userData) {
+    user.value = JSON.parse(userData);
+  }
+}
+
+const userId = computed(() => user.value?.id);
+
 // Récupération des produits depuis l'API
 const products = ref<Product[]>([]);
 const fetchProducts = async () => {
@@ -465,7 +476,7 @@ const saveInvoice = async () => {
 
   try {
     // Utiliser l'ID de l'utilisateur connecté pour created_by
-    const userId = auth.user?.id; 
+    // const userId = auth.user?.id; 
     if (!userId) { // Vérifier si l'utilisateur est connecté
         error("Utilisateur non connecté.");
         return;

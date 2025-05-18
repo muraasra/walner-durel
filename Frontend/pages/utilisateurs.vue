@@ -3,9 +3,9 @@ import { ref } from "vue";
 
 // Liste des utilisateurs (exemple)
 const utilisateurs = ref([
-  { nom: "fok", role: "superadmin", motDePasse: "12345" },
-  { nom: "durel", role: "admin", motDePasse: "raoul ???" },
-  { nom: "tayou", role: "user", motDePasse: "raoul" },
+  { nom: "walner", role: "superadmin", motDePasse: "12345" },
+  { nom: "walnerBaf", role: "admin", motDePasse: "Wtbaf2025" },
+  { nom: "userBaf", role: "admin", motDePasse: "user12345" },
 ]);
 </script>
 

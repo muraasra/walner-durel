@@ -3,11 +3,6 @@ import type { Produit } from "@/types"
 export const NAVIGATION_ITEMS = [
   [
     {
-      name: "Dashboard",
-      link: "/",
-      icon: "i-heroicons-rectangle-group",
-    },
-    {
       name: "Stock des Produits",
       link: "/stock_produit",
       icon: "i-heroicons-square-2-stack",
