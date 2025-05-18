@@ -16,11 +16,23 @@ defineProps<{
   };
 }>();
 
-const auth = useAuthStore()
+const user = ref(null);
+
+if (process.client) {
+  const userData = localStorage.getItem('user');
+  if (userData) {
+    user.value = JSON.parse(userData);
+  }
+}
+
+const userRole = computed(() => user.value?.role || "user");
+
+// const auth = useAuthStore()
 
 // Computed pour vérifier si l'utilisateur est super-admin
 const isSuperAdmin = computed(() => {
-  return auth.user?.role === 'superadmin';
+  console.log('User role:', userRole.value);
+  return userRole.value === "superadmin";
 });
 
 const isOpen = ref(false);

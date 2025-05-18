@@ -13,9 +13,21 @@ const props = defineProps<{ product: Product }>();
 const isOpen = ref(false);
 const emit = defineEmits(["editer-produit"]);
 
+const user = ref(null);
+
+if (process.client) {
+  const userData = localStorage.getItem('user');
+  if (userData) {
+    user.value = JSON.parse(userData);
+  }
+}
+
+const userRole = computed(() => user.value?.role || "user");
+
 // Computed pour vérifier si l'utilisateur est super-admin
 const isSuperAdmin = computed(() => {
-  return auth.user?.role === 'superadmin';
+  console.log('User role:', userRole.value);
+  return userRole.value === "superadmin";
 });
 
 const categoryOptions = [
