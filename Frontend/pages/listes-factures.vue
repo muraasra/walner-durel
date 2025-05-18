@@ -63,12 +63,17 @@ async function loadFactures() {
           numero: facture.numero,
           type: facture.type,
           status: facture.status,
-          date: facture.created_at ? facture.created_at.split('T')[0] : 'Date inconnue',
+          date: facture.created_at ? facture.created_at : 'Date inconnue', // Garde la date complète avec l'heure
           nom: facture.nom,
           total: facture.total ?? 0,
           verse,
           reste: facture.reste !== undefined ? facture.reste : (facture.total ?? 0) - verse,
         }
+      }).sort((a, b) => {
+        // Tri par date et heure décroissante
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateB.getTime() - dateA.getTime();
       })
     : [];
 }
@@ -163,7 +168,6 @@ onMounted(() => {
 });
 </script>
 
-
 <template>
   <section class="mt-5 px-6">
     <h2 class="text-xl md:text-3xl font-bold text-blue-400">Listes des Factures</h2>
@@ -200,7 +204,8 @@ onMounted(() => {
           <h2 class="text-2xl font-bold text-blue-400">Facture {{ factureSelectionnee.numero }}</h2>
         </div>
         <div class="text-sm space-y-1">
-          <p><strong>Date :</strong> {{ factureSelectionnee.date }}</p>
+          <p><strong>Date :</strong> {{ new Date(factureSelectionnee.date).toLocaleString('fr-FR', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'}).replace(',', '') }}</p>
+      
           <p><strong>Client :</strong> {{ factureSelectionnee.nom }}</p>
         </div>
         <hr />

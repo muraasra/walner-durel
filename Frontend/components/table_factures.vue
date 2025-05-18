@@ -82,9 +82,12 @@ watch([q, plageDatesSelectionnee], () => {
 
   <div class="shadow-lg border rounded-md dark:border-gray-600 dark:shadow-gray-800 mt-3">
     <UTable :rows="facturesFiltrees" :columns="columns">
-      <template #total-data="{ row }">{{ row.total }} FCFA</template>
-      <template #verse-data="{ row }">{{ row.verse }} FCFA</template>
-      <template #reste-data="{ row }">{{ row.reste }} FCFA</template>
+      <template #numero-data="{ row }">{{ row.numero }}</template>
+      <template #date-data="{ row }">
+        {{ new Date(row.date).toLocaleString('fr-FR', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'}).replace(',', '') }}
+      </template>
+      <template #type-data="{ row }">{{ row.type }}</template>
+      <template #nom-data="{ row }">{{ row.nom }}</template>
       <template #status-data="{ row }">
         <span
           :class="[
@@ -97,6 +100,9 @@ watch([q, plageDatesSelectionnee], () => {
           {{ row.status }}
         </span>
       </template>
+      <template #total-data="{ row }">{{ row.total }} FCFA</template>
+      <template #verse-data="{ row }">{{ row.verse }} FCFA</template>
+      <template #reste-data="{ row }">{{ row.reste }} FCFA</template>
       <template #action-data="{ row }">
         <UButton
           v-if="row.reste > 0 && row.status !== 'payé'"

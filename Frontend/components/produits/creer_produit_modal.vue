@@ -12,6 +12,7 @@ const emit = defineEmits(["creer-produit"]);
 
 const schema = z.object({
   nom: z.string().min(3, "Must be at least 3 characters"),
+  reference: z.string().min(1, "La référence est requise"),
   prix: z.number(),
   prix_achat: z.number().optional(),
   category: z.string(),
@@ -23,6 +24,7 @@ type Schema = z.output<typeof schema>;
 
 const state = ref({
   nom: "",
+  reference: "",
   prix: 0,
   prix_achat: 0,
   category: "",
@@ -62,10 +64,13 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       error("La description est requise");
       return;
     }
+    if (!event.data.reference) {
+      error("La référence est requise");
+      return;
+    }
 
     emit("creer-produit", {
       ...event.data,
-      reference: `REF-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
       actif: true,
       boutique: 1,
     });
@@ -74,6 +79,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
     isOpen.value = false;
     state.value = {
       nom: "",
+      reference: "",
       prix: 0,
       prix_achat: 0,
       category: "",
@@ -101,6 +107,9 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
         >
           <UFormGroup label="Nom du produit" name="nom">
             <UInput v-model="state.nom" placeholder="Nom du produit" color="blue"/>
+          </UFormGroup>
+          <UFormGroup label="Référence" name="reference">
+            <UInput v-model="state.reference" placeholder="Référence du produit" color="blue"/>
           </UFormGroup>
           <UFormGroup label="Prix de vente" name="prix">
             <UInput type="number" v-model="state.prix" placeholder="Prix de vente" color="blue"/>
