@@ -7,8 +7,7 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare",
-    "prepare:netlify": "bash netlify/prepare.sh"
+    "postinstall": "nuxt prepare"
   },
   "dependencies": {
     "@iconify-json/heroicons": "^1.2.1",
@@ -28,14 +27,13 @@
     "vue-router": "latest",
     "zod": "^3.23.8"
   },
-  "packageManager": "pnpm@9.12.3+sha512.cce0f9de9c5a7c95bef944169cc5dfe8741abfb145078c0d508b868056848a87c81e626246cb60967cbd7fd29a6c062ef73ff840d96b3c86c40ac92cf4a813ee",
   "devDependencies": {
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.14"
   },
   "version": "1.0.0",
-  "description": "- **Frontend Framework**: Vue.js 3 (Composition API)\r - **Meta Framework**: Nuxt.js 3\r - **Styling**: Tailwind CSS\r - **UI Component Library**: NextUI\r - **Package Manager**: pnpm",
+  "description": "Application de gestion de stock et facturation WALNER TECH",
   "main": "index.js",
   "author": "",
   "license": "ISC"
