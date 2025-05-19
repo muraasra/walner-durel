@@ -1,10 +1,13 @@
 export default defineNuxtConfig({
   ssr: true,
+
   nitro: {
     preset: 'node-server'
   },
+
   devtools: { enabled: true },
   modules: ['@nuxt/ui', '@pinia/nuxt'],
+
   app: {
     head: {
       title: 'WALNER TECH',
@@ -15,11 +18,15 @@ export default defineNuxtConfig({
       ]
     }
   },
+
   css: ['~/assets/css/main.css'],
+
   postcss: {
     plugins: {
       tailwindcss: {},
       autoprefixer: {},
     },
-  }
+  },
+
+  compatibilityDate: '2025-05-19'
 })
