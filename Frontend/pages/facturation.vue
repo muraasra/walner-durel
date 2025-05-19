@@ -262,12 +262,13 @@ const subtotal = computed(() => {
   );
 });
 
-const taxAmount = computed(() => {
-  return subtotal.value * (invoice.value.taxRate / 100);
-});
+// const taxAmount = computed(() => {
+//   return subtotal.value * (invoice.value.taxRate / 100);
+// });
 
 const total = computed(() => {
-  return subtotal.value + taxAmount.value;
+  // return subtotal.value + taxAmount.value;
+  return subtotal.value ;
 });
 
 // Calcul du montant restant à payer
@@ -845,10 +846,7 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
             <span class="text-sm font-medium text-gray-500 dark:text-gray-300">Sous-total :</span>
             <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ formatCurrency(subtotal) }}</span>
           </div>
-          <div class="flex justify-between items-center py-2 border-t border-gray-200 dark:border-gray-600">
-            <span class="text-sm font-medium text-gray-500 dark:text-gray-300">Taxe ({{ invoice.taxRate }}%):</span>
-            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ formatCurrency(taxAmount) }}</span>
-          </div>
+           
           <div class="flex justify-between items-center py-2 border-t border-gray-200 dark:border-gray-600">
             <span class="text-base font-medium text-gray-900 dark:text-gray-100">Total :</span>
             <span class="text-base font-medium text-gray-900 dark:text-gray-100">{{ formatCurrency(total) }}</span>
@@ -926,10 +924,10 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
       <div class="mb-6 text-right">
         <p><strong>Total produits :</strong> {{ totalItems }}</p>
         <p><strong>Sous-total :</strong> {{ formatCurrency(subtotal) }}</p>
-        <p>
-          <strong>Taxe ({{ invoice.taxRate }}%):</strong>
-          {{ formatCurrency(taxAmount) }}
-        </p>
+        // <p>
+        //   <strong>Taxe ({{ invoice.taxRate }}%):</strong>
+        //   {{ formatCurrency(taxAmount) }}
+        // </p>
         <p class="text-lg font-bold text-blue-400"><strong>Total :</strong> {{ formatCurrency(total) }}</p>
       </div>
     </div>

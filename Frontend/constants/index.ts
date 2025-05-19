@@ -83,13 +83,13 @@ export const NAVIGATION_ITEMS_ADMIN = [
       icon: "i-heroicons-arrows-right-left",
     },
   ],
-  [
-    {
-      name: "Guide",
-      link: "/guide",
-      icon: "i-heroicons-book-open",
-    },
-  ],
+  // [
+  //   {
+  //     name: "Guide",
+  //     link: "/guide",
+  //     icon: "i-heroicons-book-open",
+  //   },
+  // ],
   [
     {
       name: "Logout",
@@ -151,13 +151,13 @@ export const NAVIGATION_ITEMS_SUPERADMIN = [
       icon: "i-heroicons-arrows-right-left",
     },
   ],
-  [
-    {
-      name: "Guide",
-      link: "/guide",
-      icon: "i-heroicons-book-open",
-    },
-  ],
+  // [
+  //   {
+  //     name: "Guide",
+  //     link: "/guide",
+  //     icon: "i-heroicons-book-open",
+  //   },
+  // ],
   [
     {
       name: "Logout",
