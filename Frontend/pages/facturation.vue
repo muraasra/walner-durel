@@ -4,27 +4,31 @@ import { useNotification } from '../types/useNotification';
 import { Body } from "#components";
 import { boolean } from "zod";
 import { useAuthStore } from '@/stores/auth'
-import { jsPDF } from "jspdf";
-// @ts-ignore
+// Corriger l'import de jsPDF
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 const auth = useAuthStore()
-
+const { error, success } = useNotification();
 
 interface InvoiceBody {
   total: number;
   quantite: number;
   prix_unitaire_fcfa: number;
+  prix_vente_vendeur?: number;
+  justification?: string;
   nom: string;
   prenom: string;
   telephone: string;
   produit_id: number;
   facture?: number;
 }
+
 interface InvoiceBodyPartners {
-  // total: number;
   quantite: number;
   prix_unitaire_fcfa: number;
+  prix_vente_vendeur?: number;
+  justification?: string;
   partenaire: number;
   produit_id: number;
   facture?: number;
@@ -37,22 +41,34 @@ interface InvoiceItem {
   description: string;
   quantity: number;
   price: number;
+  prix_unitaire_fcfa: number;
+  prix_vente_vendeur?: number;
+  justification?: string;
+  prix_achat?: number;
+  category?: string;
+  ram?: string;
+  disque_dur?: string;
+  processeur?: string;
+  generation?: string;
+  carte_graphique?: string;
+  systeme_exploitation?: string;
+  priceError?: string | null; // Corriger le type
 }
 
 interface Invoice {
   number: string;
   date: string;
-  recipientType: "client" | "partenaire" | "";
+  recipientType: 'client' | 'partenaire' | '';
   client: {
+    id: number;
     nom: string;
     prenom: string;
     telephone: string;
   };
-  
-  partenaire: string;
+  partenaire?: string;
   items: InvoiceItem[];
-  taxRate: number;
   montantVerse: number;
+  taxAmount?: number;
 }
 
 // Interface correspondant à la structure de votre API
@@ -66,6 +82,13 @@ interface Product {
   category?: string;
   quantite?: number;
   actif?: boolean;
+  // Champs spécifiques pour les ordinateurs
+  ram?: string;
+  disque_dur?: string;
+  processeur?: string;
+  generation?: string;
+  carte_graphique?: string;
+  systeme_exploitation?: string;
 }
 
 interface Partner {
@@ -94,9 +117,12 @@ interface User {
   username: string;
   email?: string;
   role?: string;
+  boutique?: {
+    id: number;
+    nom: string;
+  };
   nom?: string;
   prenom?: string;
-  boutique?: number;
 }
 
 declare module '@/stores/auth' {
@@ -105,7 +131,17 @@ declare module '@/stores/auth' {
   }
 }
 
-const user = ref(null);
+// Corriger la déclaration du module jsPDF
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: typeof autoTable;
+    lastAutoTable: {
+      finalY: number;
+    };
+  }
+}
+
+const user = ref<User | null>(null);
 
 if (process.client) {
   const userData = localStorage.getItem('user');
@@ -141,7 +177,13 @@ const fetchProducts = async () => {
         prix_achat: p.prix_achat,
         category: p.category,
         quantite: p.quantite,
-        actif: p.actif
+        actif: p.actif,
+        ram: p.ram,
+        disque_dur: p.disque_dur,
+        processeur: p.processeur,
+        generation: p.generation,
+        carte_graphique: p.carte_graphique,
+        systeme_exploitation: p.systeme_exploitation
       }))
       : [];
 
@@ -173,18 +215,18 @@ const fetchPartners = async () => {
 };
 
 const invoice = ref<Invoice>({
-  number: generateInvoiceNumber(),
-  date: new Date().toISOString().split("T")[0],
-  recipientType: "",
+  number: "",
+  date: new Date().toISOString().split('T')[0],
+  recipientType: '',
   client: {
+    id: 0,
     nom: "",
     prenom: "",
-    telephone: "",
+    telephone: ""
   },
   partenaire: "",
   items: [],
-  taxRate: 10,
-  montantVerse: 0, // Initialisation du montant versé à 0
+  montantVerse: 0,
 });
 
 const currentProductRef = ref("");
@@ -241,6 +283,17 @@ const selectProduct = async (product: Product) => {
       description: product.description,
       quantity: 1,
       price: product.prix,
+      prix_unitaire_fcfa: product.prix,
+      prix_vente_vendeur: product.prix,
+      prix_achat: product.prix_achat,
+      justification: "",
+      category: product.category,
+      ram: product.ram,
+      disque_dur: product.disque_dur,
+      processeur: product.processeur,
+      generation: product.generation,
+      carte_graphique: product.carte_graphique,
+      systeme_exploitation: product.systeme_exploitation
     });
     
     searchQuery.value = "";
@@ -257,7 +310,7 @@ const removeItem = (index: number) => {
 
 const subtotal = computed(() => {
   return invoice.value.items.reduce(
-    (sum, item) => sum + item.quantity * item.price,
+    (sum, item) => sum + item.quantity * item.price, // Utiliser item.price au lieu de prix_vente_vendeur
     0
   );
 });
@@ -267,8 +320,7 @@ const subtotal = computed(() => {
 // });
 
 const total = computed(() => {
-  // return subtotal.value + taxAmount.value;
-  return subtotal.value ;
+  return subtotal.value;
 });
 
 // Calcul du montant restant à payer
@@ -303,16 +355,6 @@ onMounted(async () => {
   await Promise.all([fetchProducts(), fetchPartners()]);
 });
 
-// Type augmentation for jsPDF
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: typeof autoTable;
-    lastAutoTable: {
-      finalY: number;
-    };
-  }
-}
-
 // Constantes pour la facture
 const COMPANY_INFO = {
   name: "ETS WALNER TECH",
@@ -324,142 +366,66 @@ const COMPANY_INFO = {
   warranty: "Garantie Produit – Service Après-Vente\nCe produit est couvert par une garantie de 6 mois à compter de la date d'achat figurant sur cette facture.\nEn cas de dysfonctionnement non causé par une mauvaise utilisation, vous pouvez bénéficier d'un service après-vente en présentant cette facture.\n\n Cette garantie couvre uniquement les défauts de fabrication et ne s'applique pas aux dommages physiques ou à l'usure normale.\n\nPour toute demande de prise en charge, contactez notre service client."
 };
 
-// Fonction pour générer le PDF
-const generatePDF = () => {
+// Fonction pour générer le PDF (corrigée)
+const generatePDF = async () => {
   try {
     const doc = new jsPDF();
-
-    // --- En-tête entreprise ---
-    // Bandeau bleu clair
-    doc.setFillColor(0, 120, 212);
-    doc.rect(0, 0, 210, 30, 'F');
-
-    // Logo (optionnel)
-    try {
-      doc.addImage('/img/logo.jpg', 'JPEG', 10, 5, 20, 20);
-    } catch (err) {
-      // ignore si pas de logo
-    }
-
-    // Nom entreprise
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('times', 'bold');
-    doc.setFontSize(18);
-    doc.text(COMPANY_INFO.name, 35, 15);
-
-    // Adresse et NUI
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(COMPANY_INFO.address, 35, 22);
-    doc.text(`NUI: ${COMPANY_INFO.nui}  Tél.: ${COMPANY_INFO.phones.join(' / ')}`, 35, 27);
-
-    // --- Titre facture ---
-    doc.setTextColor(0, 120, 212);
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`FACTURE N° ${invoice.value.number}`, 150, 15, { align: 'right' });
-
-    // --- Infos client/partenaire et date ---
-    doc.setTextColor(0, 0, 0);
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Date : ${new Date(invoice.value.date).toLocaleDateString()}`, 150, 22, { align: 'right' });
-
-    let y = 35;
-    doc.setFontSize(11);
-    if (invoice.value.recipientType === 'client') {
-      doc.text(`Client : ${invoice.value.client.prenom} ${invoice.value.client.nom}`, 10, y);
-      doc.text(`Téléphone : ${invoice.value.client.telephone}`, 10, y + 6);
-    } else {
-      doc.text(`Partenaire : ${invoice.value.partenaire}`, 10, y);
-    }
-
-    // --- Tableau des articles ---
-    y += 14;
-    autoTable(doc, {
-      startY: y,
-      head: [[
-        "Référence", "Désignation", "Prix unitaire", "Quantité", "Total"
-      ]],
-      body: invoice.value.items.map(item => [
-        item.reference,
-        item.name,
-        formatCurrency(item.price),
-        item.quantity,
-        formatCurrency(item.price * item.quantity)
-      ]),
-      theme: 'grid',
-      headStyles: {
-        fillColor: [0, 120, 212],
-        textColor: 255,
-        fontStyle: 'bold',
-        fontSize: 11,
-        halign: 'center'
-      },
-      bodyStyles: {
-        fontSize: 10,
-        halign: 'center'
-      },
-      styles: {
-        cellPadding: 3,
-        lineColor: [220, 220, 220],
-        lineWidth: 0.5,
-        font: 'helvetica'
-      },
-      alternateRowStyles: { fillColor: [245, 250, 255] },
-      margin: { left: 10, right: 10 }
-    });
-
-    // --- Totaux et paiement ---
-    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    
+    // En-tête
+    doc.setFontSize(20);
+    doc.text('Facture', 105, 20, { align: 'center' });
+    
+    // Informations de la boutique
     doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(0, 120, 212);
-    doc.text("TOTAL", 150, finalY);
-    doc.setTextColor(0, 0, 0);
-    doc.text(formatCurrency(total.value), 200, finalY, { align: "right" });
-
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'normal');
-    doc.text("Montant versé :", 150, finalY + 8);
-    doc.text(formatCurrency(invoice.value.montantVerse), 200, finalY + 8, { align: "right" });
-    doc.text("Reste à payer :", 150, finalY + 16);
-    doc.text(formatCurrency(reste.value), 200, finalY + 16, { align: "right" });
-
-// --- Notice ---
-doc.setFontSize(9);
-doc.setTextColor(100, 100, 100);
-doc.text(COMPANY_INFO.notice, 10, finalY + 28);
-
-// --- Garantie (rectangle gris, texte wrap, hauteur dynamique) ---
-doc.setFontSize(8);
-doc.setTextColor(0, 0, 0);
-const warrantyLines = doc.splitTextToSize(COMPANY_INFO.warranty, 180);
-const warrantyBoxY = finalY + 35;
-const lineHeight = 4;
-const warrantyBoxHeight = warrantyLines.length * lineHeight + 8; // 8px de padding vertical
-
-doc.setFillColor(245, 245, 245);
-doc.roundedRect(10, warrantyBoxY, 190, warrantyBoxHeight, 3, 3, 'F');
-
-let warrantyTextY = warrantyBoxY + 5;
-warrantyLines.forEach(line => {
-  doc.text(line, 15, warrantyTextY);
-  warrantyTextY += lineHeight;
-});
-
-// --- Signatures (toujours sous la garantie, jamais dessus) ---
-const signatureY = warrantyBoxY + warrantyBoxHeight + 10;
-doc.setFontSize(10);
-doc.setTextColor(0, 0, 0);
-doc.text("Signature Client", 20, signatureY);
-doc.text("Signature Vendeur", 150, signatureY);
-
-    // --- Sauvegarde ---
-    doc.save(`${invoice.value.number}.pdf`);
+    doc.text(`Boutique: ${user.value?.boutique?.nom || ''}`, 20, 40);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 50);
+    
+    // Informations du client
+    if (invoice.value.recipientType === 'client' && invoice.value.client) {
+      doc.text(`Client: ${invoice.value.client.prenom} ${invoice.value.client.nom}`, 20, 60);
+      doc.text(`Téléphone: ${invoice.value.client.telephone}`, 20, 70);
+    } else if (invoice.value.recipientType === 'partenaire') {
+      doc.text(`Partenaire: ${invoice.value.partenaire}`, 20, 60);
+    }
+    
+    // Tableau des produits
+    const tableData = invoice.value.items.map(item => [
+      item.reference,
+      item.name,
+      `${formatCurrency(item.price)} FCFA`,
+      item.quantity.toString(),
+      `${formatCurrency(item.quantity * item.price)} FCFA`
+    ]);
+    
+    // Corriger l'appel à autoTable
+    (doc as any).autoTable({
+      startY: 80,
+      head: [['Référence', 'Nom', 'Prix unitaire', 'Quantité', 'Total']],
+      body: tableData,
+      theme: 'grid',
+      styles: { fontSize: 10 },
+      headStyles: { fillColor: [41, 128, 185] }
+    });
+    
+    // Total
+    const finalY = (doc as any).lastAutoTable.finalY || 150;
+    doc.text(`Total: ${formatCurrency(total.value)} FCFA`, 20, finalY + 20);
+    
+    // Montant versé
+    doc.text("Montant versé: ", 20, finalY + 40);
+    doc.text(formatCurrency(invoice.value.montantVerse), 150, finalY + 40);
+    
+    // Reste à payer
+    doc.text("Reste à payer: ", 20, finalY + 50);
+    doc.text(formatCurrency(reste.value), 150, finalY + 50);
+    
+    // Sauvegarder le PDF
+    doc.save('facture.pdf');
+    success('Facture générée et téléchargée');
     return true;
   } catch (err) {
-    console.error("Erreur lors de la génération du PDF:", err);
+    console.error('Erreur lors de la génération du PDF:', err);
+    error('Erreur lors de la génération du PDF');
     return false;
   }
 };
@@ -471,11 +437,77 @@ const numberToWords = (number: number): string => {
   return number.toString();
 };
 
-// Modification de la fonction saveInvoice pour inclure la génération du PDF
-const saveInvoice = async () => {
-  const { success, error } = useNotification();
+// Fonction pour valider le prix de vente et mettre à jour les totaux
+const validatePrice = (item: InvoiceItem) => {
+  const prixAchat = item.prix_achat || 0;
+  const prixVente = item.price;
+  const margeMinimale = 5000; // 5000 FCFA de marge minimale
+  
+  if (prixVente < prixAchat + margeMinimale) {
+    // Ne pas révéler le prix d'achat dans le message d'erreur
+    item.priceError = `Le prix de vente doit être au moins ${formatCurrency(prixAchat + margeMinimale)} FCFA`;
+    return false;
+  } else {
+    item.priceError = undefined;
+    // Mettre à jour prix_vente_vendeur quand le prix est valide
+    item.prix_vente_vendeur = item.price;
+    return true;
+  }
+};
 
+// Ajouter la fonction getPriceValidationClass manquante
+const getPriceValidationClass = (item: InvoiceItem) => {
+  if (item.priceError) {
+    return 'border-red-500 bg-red-50';
+  }
+  return '';
+};
+
+// Modification de la fonction d'ajout d'article
+const addItem = () => {
+  const product = findProductByReference(currentProductRef.value);
+  if (!product) {
+    error("Produit non trouvé");
+    return;
+  }
+
+  const existingItem = invoice.value.items.find(item => item.reference === product.reference);
+  if (existingItem) {
+    existingItem.quantity++;
+  } else {
+    invoice.value.items.push({
+      id: product.id,
+      reference: product.reference,
+      name: product.nom,
+      description: product.description,
+      quantity: 1,
+      price: product.prix,
+      prix_unitaire_fcfa: product.prix,
+      prix_vente_vendeur: product.prix,
+      prix_achat: product.prix_achat,
+      justification: "",
+      category: product.category,
+      ram: product.ram,
+      disque_dur: product.disque_dur,
+      processeur: product.processeur,
+      generation: product.generation,
+      carte_graphique: product.carte_graphique,
+      systeme_exploitation: product.systeme_exploitation
+    });
+  }
+  currentProductRef.value = "";
+};
+
+// Corriger la fonction submitInvoice
+const submitInvoice = async () => {
   try {
+    // Validation des prix
+    for (const item of invoice.value.items) {
+      if (!validatePrice(item)) {
+        return;
+      }
+    }
+
     // Utiliser l'ID de l'utilisateur connecté pour created_by
     // const userId = auth.user?.id; 
     if (!userId) { // Vérifier si l'utilisateur est connecté
@@ -506,12 +538,12 @@ const saveInvoice = async () => {
       }
     }
 
-    let nomFacture : string = "";
-    if (invoice.value.recipientType=="client"){
-        nomFacture=invoice.value.client.nom + ' ' +invoice.value.client.prenom
+    let nomFacture: string = "";
+    if (invoice.value.recipientType == "client") {
+      nomFacture = invoice.value.client?.nom + ' ' + invoice.value.client?.prenom;
     }
-    if (invoice.value.recipientType=="partenaire"){
-        nomFacture=invoice.value.partenaire
+    if (invoice.value.recipientType == "partenaire") {
+      nomFacture = invoice.value.partenaire || ""; // Ajouter une valeur par défaut
     }
     
     const factureData = {
@@ -521,7 +553,7 @@ const saveInvoice = async () => {
       status: reste.value > 0 ? 'encours' : 'payé',
       nom: nomFacture,
       numero: invoice.value.number,
-      boutique: auth.user?.boutique || 1, 
+      boutique: user.value?.boutique?.id || 1, // Corriger l'accès à boutique
       created_by: userId
     };
 
@@ -547,23 +579,31 @@ const saveInvoice = async () => {
       for (const item of invoice.value.items) {
         // Créer la commande
         const invoiceBody: InvoiceBody = {
-          total: item.quantity * item.price,
+          total: item.quantity * item.price, // Utiliser item.price
           quantite: item.quantity,
-          prix_unitaire_fcfa: item.price,
-          nom: invoice.value.client.nom,
-          prenom: invoice.value.client.prenom,
-          telephone: invoice.value.client.telephone,
+          prix_unitaire_fcfa: item.price, // Utiliser item.price
+          prix_vente_vendeur: item.price, // Utiliser item.price
+          justification: item.justification,
+          nom: invoice.value.client?.nom || "",
+          prenom: invoice.value.client?.prenom || "",
+          telephone: invoice.value.client?.telephone || "",
           produit_id: item.id,
           facture: facture.value?.id,
         };
 
         try {
           // Enregistrer la commande
-          const { data: commandeData } = await useApi(endpoint, {
+          const { data: commandeData, error: commandeError } = await useApi(endpoint, {
             method: 'POST',
             body: JSON.stringify(invoiceBody),
             server: false
           });
+
+          if (commandeError.value) {
+            error(commandeError.value.message || "Erreur lors de l'enregistrement de la commande");
+            isSuccess = false;
+            break;
+          }
 
           // Mettre à jour le stock
           const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${item.id}`, {
@@ -590,7 +630,7 @@ const saveInvoice = async () => {
 
     if (isSuccess) {
         // Générer le PDF
-      const pdfGenerated = generatePDF();
+      const pdfGenerated = await generatePDF();
       if (pdfGenerated) {
           success(`Facture client ${invoice.value.number} enregistrée et téléchargée`);
       } else {
@@ -602,10 +642,9 @@ const saveInvoice = async () => {
         number: generateInvoiceNumber(),
         date: new Date().toISOString().split("T")[0],
         recipientType: "",
-        client: { nom: "", prenom: "", telephone: "" },
+        client: { id: 0, nom: "", prenom: "", telephone: "" },
         partenaire: "",
         items: [],
-        taxRate: 10,
         montantVerse: 0,
       };
       }
@@ -627,18 +666,26 @@ const saveInvoice = async () => {
       for (const item of invoice.value.items) {
         const invoiceBodyPartners: InvoiceBodyPartners = {
           quantite: item.quantity,
-          prix_unitaire_fcfa: item.price,
+          prix_unitaire_fcfa: item.price, // Utiliser item.price
+          prix_vente_vendeur: item.price, // Utiliser item.price
+          justification: item.justification,
           partenaire: selectedPartner.id,
           produit_id: item.id,
           facture: facture.value?.id,
         };
 
         try {
-          await useApi(endpoint, {
+          const { data: commandeData, error: commandeError } = await useApi(endpoint, {
             method: 'POST',
             body: JSON.stringify(invoiceBodyPartners),
             server: false
           });
+
+          if (commandeError.value) {
+            error(commandeError.value.message || "Erreur lors de l'enregistrement de la commande");
+            isSuccess = false;
+            break;
+          }
 
           // Mettre à jour le stock
           const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${item.id}`, {
@@ -665,7 +712,7 @@ const saveInvoice = async () => {
 
       if (isSuccess) {
         // Générer le PDF
-        const pdfGenerated = generatePDF();
+        const pdfGenerated = await generatePDF();
         if (pdfGenerated) {
           success(`Facture partenaire ${invoice.value.number} enregistrée et téléchargée`);
         } else {
@@ -677,10 +724,9 @@ const saveInvoice = async () => {
           number: generateInvoiceNumber(),
           date: new Date().toISOString().split("T")[0],
           recipientType: "",
-          client: { nom: "", prenom: "", telephone: "" },
+          client: { id: 0, nom: "", prenom: "", telephone: "" },
           partenaire: "",
           items: [],
-          taxRate: 10,
           montantVerse: 0,
         };
       }
@@ -809,7 +855,8 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
                   <th class="px-4 py-2">Référence</th>
                   <th class="px-4 py-2">Nom</th>
                   <th class="px-4 py-2">Description</th>
-                  <th class="px-4 py-2">Prix</th>
+                  <th class="px-4 py-2">Prix de vente</th>
+                  <th class="px-4 py-2">Justification</th>
                   <th class="px-4 py-2">Quantité</th>
                   <th class="px-4 py-2">Total</th>
                   <th class="px-4 py-2">Action</th>
@@ -818,17 +865,61 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
               <tbody>
                 <tr v-for="(item, index) in invoice.items" :key="index" class="border-b dark:border-gray-600">
                   <td class="px-4 py-2">{{ item.reference }}</td>
-                  <td class="px-4 py-2">{{ item.name }}</td>
-                  <td class="px-4 py-2">{{ item.description }}</td>
-                  <td class="px-4 py-2">{{ formatCurrency(item.price) }}</td>
-                  <td class="px-4 py-2 w-24">
-                    <UInput type="number" color="blue" variant="outline" v-model="item.quantity" min="1"
-                      class="w-full" />
-                  </td>
-                  <td class="px-4 py-2">{{ formatCurrency(item.quantity * item.price) }}</td>
                   <td class="px-4 py-2">
-                    <UButton icon="i-heroicons-trash" @click="removeItem(index)" color="red" size="sm">
-                    </UButton>
+                    {{ item.name }}
+                    <div v-if="item.category?.toLowerCase() === 'ordinateur'" class="text-sm text-gray-600 mt-1">
+                      <div v-if="item.ram">RAM: {{ item.ram }}</div>
+                      <div v-if="item.disque_dur">Disque dur: {{ item.disque_dur }}</div>
+                      <div v-if="item.processeur">Processeur: {{ item.processeur }}</div>
+                      <div v-if="item.generation">Génération: {{ item.generation }}</div>
+                      <div v-if="item.carte_graphique">Carte graphique: {{ item.carte_graphique }}</div>
+                      <div v-if="item.systeme_exploitation">OS: {{ item.systeme_exploitation }}</div>
+                    </div>
+                  </td>
+                  <td class="px-4 py-2">{{ item.description }}</td>
+                  <td class="px-4 py-2 w-32">
+                    <UInput 
+                      type="number" 
+                      color="blue" 
+                      variant="outline" 
+                      v-model="item.price" 
+                      min="0"
+                      class="w-full"
+                      :class="getPriceValidationClass(item)"
+                      @input="validatePrice(item)"
+                    />
+                    <div v-if="item.priceError" class="text-xs text-red-500 mt-1">
+                      {{ item.priceError }}
+                    </div>
+                  </td>
+                  <td class="px-4 py-2">
+                    <UInput
+                      v-model="item.justification"
+                      placeholder="Justification du prix"
+                      class="w-full"
+                      :disabled="!item.price || item.price === item.prix_vente_vendeur"
+                    />
+                  </td>
+                  <td class="px-4 py-2 w-24">
+                    <UInput 
+                      type="number" 
+                      color="blue" 
+                      variant="outline" 
+                      v-model="item.quantity" 
+                      min="1"
+                      class="w-full" 
+                    />
+                  </td>
+                  <td class="px-4 py-2">
+                    {{ formatCurrency(item.quantity * item.price) }}
+                  </td>
+                  <td class="px-4 py-2">
+                    <UButton 
+                      icon="i-heroicons-trash" 
+                      @click="removeItem(index)" 
+                      color="red" 
+                      size="sm"
+                    />
                   </td>
                 </tr>
               </tbody>
@@ -871,7 +962,7 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
 
         <!-- Actions -->
         <div class="flex justify-end space-x-4">
-          <UButton @click="saveInvoice" color="green" variant="solid" size="lg" icon="i-heroicons-document-check">
+          <UButton @click="submitInvoice" color="green" variant="solid" size="lg" icon="i-heroicons-document-check">
             Enregistrer la Facture
           </UButton>
           <UButton @click="printInvoice" size="lg" icon="i-heroicons-printer" color="blue" variant="solid">
@@ -888,7 +979,7 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
         <p><strong>Numéro de la Facture :</strong> {{ invoice.number }}</p>
         <p><strong>Date :</strong> {{ invoice.date }}</p>
 
-        <div v-if="invoice.recipientType === 'client'">
+        <div v-if="invoice.recipientType === 'client' && invoice.client">
           <p><strong>Client :</strong> {{ invoice.client.prenom }} {{ invoice.client.nom }}</p>
           <p><strong>Téléphone :</strong> {{ invoice.client.telephone }}</p>
         </div>
@@ -911,7 +1002,17 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
         <tbody>
           <tr v-for="item in invoice.items" :key="item.id" class="border-b">
             <td class="border p-2">{{ item.reference }}</td>
-            <td class="border p-2">{{ item.name }} - {{ item.description }}</td>
+            <td class="border p-2">
+              {{ item.name }} - {{ item.description }}
+              <div v-if="item.category?.toLowerCase() === 'ordinateur'" class="text-sm text-gray-600 mt-1">
+                <div v-if="item.ram">RAM: {{ item.ram }}</div>
+                <div v-if="item.disque_dur">Disque dur: {{ item.disque_dur }}</div>
+                <div v-if="item.processeur">Processeur: {{ item.processeur }}</div>
+                <div v-if="item.generation">Génération: {{ item.generation }}</div>
+                <div v-if="item.carte_graphique">Carte graphique: {{ item.carte_graphique }}</div>
+                <div v-if="item.systeme_exploitation">OS: {{ item.systeme_exploitation }}</div>
+              </div>
+            </td>
             <td class="border p-2 text-right">{{ formatCurrency(item.price) }}</td>
             <td class="border p-2 text-right">{{ item.quantity }}</td>
             <td class="border p-2 text-right">
@@ -924,10 +1025,6 @@ const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, 
       <div class="mb-6 text-right">
         <p><strong>Total produits :</strong> {{ totalItems }}</p>
         <p><strong>Sous-total :</strong> {{ formatCurrency(subtotal) }}</p>
-        // <p>
-        //   <strong>Taxe ({{ invoice.taxRate }}%):</strong>
-        //   {{ formatCurrency(taxAmount) }}
-        // </p>
         <p class="text-lg font-bold text-blue-400"><strong>Total :</strong> {{ formatCurrency(total) }}</p>
       </div>
     </div>
