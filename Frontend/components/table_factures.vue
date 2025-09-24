@@ -82,23 +82,38 @@ watch([q, plageDatesSelectionnee], () => {
 
   <div class="shadow-lg border rounded-md dark:border-gray-600 dark:shadow-gray-800 mt-3">
     <UTable :rows="facturesFiltrees" :columns="columns">
+      <template #numero-data="{ row }">{{ row.numero }}</template>
+      <template #date-data="{ row }">
+        {{ new Date(row.date).toLocaleString('fr-FR', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'}).replace(',', '') }}
+      </template>
+      <template #type-data="{ row }">{{ row.type }}</template>
+      <template #nom-data="{ row }">{{ row.nom }}</template>
+      <template #status-data="{ row }">
+        <span
+          :class="[
+            'inline-block px-3 py-1 text-xs font-semibold rounded-full',
+            row.status === 'payé'
+              ? 'bg-green-100 text-green-700'
+              : 'bg-red-100 text-red-700'
+          ]"
+        >
+          {{ row.status }}
+        </span>
+      </template>
       <template #total-data="{ row }">{{ row.total }} FCFA</template>
       <template #verse-data="{ row }">{{ row.verse }} FCFA</template>
       <template #reste-data="{ row }">{{ row.reste }} FCFA</template>
-      <!-- <template #produits-data="{ row }">
-        <ul>
-          <li v-for="produit in row.produits" :key="produit">{{ produit }}</li>
-        </ul>
-      </template> -->
-      <!-- <template #actions-data="{ row }">
-          <UButton color="blue" @click="nouveauVersement(row)">Versement</UButton>
-        </template> -->
-        <!-- Colonne personnalisée pour les actions -->
-        <template #action-data="{ row }">
-          <UButton color="blue" class="mr-2" @click="$emit('versement',row)">Versement</UButton>
-          <UButton color="green" @click="$emit('voir',row)">voir</UButton>
-        </template>
-        <!-- Colonne personnalisée pour les actions -->
+      <template #action-data="{ row }">
+        <UButton
+          v-if="row.reste > 0 && row.status !== 'payé'"
+          color="blue"
+          class="mr-2"
+          @click="$emit('versement', row)"
+        >
+        Versement
+        </UButton>
+        <UButton color="green" @click="$emit('voir', row)">voir</UButton>
+      </template>
     </UTable>
 
     <div class="flex justify-end px-3 py-3.5 border-t border-gray-200 dark:border-gray-700">

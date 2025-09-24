@@ -36,17 +36,37 @@ class FactureSerializer(serializers.ModelSerializer):
 class CommandeClientSerializer(serializers.ModelSerializer):
     total = serializers.ReadOnlyField()
     produit = ProduitSerializer(read_only=True)
-
+    produit_id = serializers.IntegerField(write_only=True)
+    
     class Meta:
         model = CommandeClient
-        fields = '__all__'
+        fields = ['id', 'facture', 'nom', 'quantite', 'prenom','telephone', 'produit', 'produit_id','prix_unitaire_fcfa','total']
+        extra_kwargs = {
+            'produit': {'read_only': True}
+        }
+    
+    def create(self, validated_data):
+        produit_id = validated_data.pop('produit_id')
+        produit = Produit.objects.get(id=produit_id)
+        commande = CommandeClient.objects.create(produit=produit, **validated_data)
+        return commande
 
 class CommandePartenaireSerializer(serializers.ModelSerializer):
     total = serializers.ReadOnlyField()
+    produit = ProduitSerializer(read_only=True)
+    produit_id = serializers.IntegerField(write_only=True)
 
     class Meta:
         model = CommandePartenaire
-        fields = '__all__'
+        fields = ['id', 'facture', 'partenaire', 'quantite', 'produit', 'produit_id','prix_unitaire_fcfa','total']
+        extra_kwargs = {
+            'produit': {'read_only': True}
+        }
+    def create(self, validated_data):
+        produit_id = validated_data.pop('produit_id')
+        produit = Produit.objects.get(id=produit_id)
+        commande = CommandePartenaire.objects.create(produit=produit, **validated_data)
+        return commande
 
 class VersementSerializer(serializers.ModelSerializer):
     class Meta:

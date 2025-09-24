@@ -4,6 +4,10 @@ import { useNotification } from '../types/useNotification';
 import { Body } from "#components";
 import { boolean } from "zod";
 import { useAuthStore } from '@/stores/auth'
+import { jsPDF } from "jspdf";
+// @ts-ignore
+import autoTable from 'jspdf-autotable';
+
 const auth = useAuthStore()
 
 
@@ -14,15 +18,15 @@ interface InvoiceBody {
   nom: string;
   prenom: string;
   telephone: string;
-  produit: number;
+  produit_id: number;
   facture?: number;
 }
 interface InvoiceBodyPartners {
-  total: number;
+  // total: number;
   quantite: number;
   prix_unitaire_fcfa: number;
   partenaire: number;
-  produit: number;
+  produit_id: number;
   facture?: number;
 }
 
@@ -58,6 +62,7 @@ interface Product {
   nom: string;
   description: string;
   prix: number;
+  prix_achat?: number; // Prix d'achat optionnel
   category?: string;
   quantite?: number;
   actif?: boolean;
@@ -74,6 +79,43 @@ interface Partner {
   boutique?: string;
 }
 
+// Interfaces pour les réponses API
+interface StockResponse {
+  quantite: number;
+  id: number;
+}
+
+interface FactureResponse {
+  id: number;
+}
+
+interface User {
+  id: number;
+  username: string;
+  email?: string;
+  role?: string;
+  nom?: string;
+  prenom?: string;
+  boutique?: number;
+}
+
+declare module '@/stores/auth' {
+  interface AuthStore {
+    user: User | null;
+  }
+}
+
+const user = ref(null);
+
+if (process.client) {
+  const userData = localStorage.getItem('user');
+  if (userData) {
+    user.value = JSON.parse(userData);
+  }
+}
+
+const userId = computed(() => user.value?.id);
+
 // Récupération des produits depuis l'API
 const products = ref<Product[]>([]);
 const fetchProducts = async () => {
@@ -88,7 +130,7 @@ const fetchProducts = async () => {
       return;
     }
 
-    // Mappez les données de l'API vers  Product
+    // Mappez les données de l'API vers Product
     products.value = Array.isArray(data.value)
       ? data.value.map(p => ({
         id : p.id,
@@ -96,6 +138,7 @@ const fetchProducts = async () => {
         nom: p.nom,
         description: p.description,
         prix: p.prix,
+        prix_achat: p.prix_achat,
         category: p.category,
         quantite: p.quantite,
         actif: p.actif
@@ -147,6 +190,21 @@ const invoice = ref<Invoice>({
 const currentProductRef = ref("");
 const invoicePreview = ref<HTMLElement | null>(null);
 
+// État pour la recherche de produits
+const searchQuery = ref("");
+const showProductSearch = ref(false);
+
+// Computed pour filtrer les produits selon la recherche
+const filteredProducts = computed(() => {
+  if (!searchQuery.value) return [];
+  
+  const query = searchQuery.value.toLowerCase().trim();
+  return products.value.filter(product => 
+    product.reference.toLowerCase().includes(query) ||
+    product.nom.toLowerCase().includes(query)
+  ).slice(0, 5); // Limite à 5 résultats
+});
+
 function generateInvoiceNumber(): string {
   const prefix = "FACT";
   const date = new Date();
@@ -162,9 +220,20 @@ const findProductByReference = (reference: string): Product | undefined => {
   return products.value.find((product) => product.reference === reference);
 };
 
-const addItem = () => {
-  const product = findProductByReference(currentProductRef.value);
-  if (product) {
+// Sélection d'un produit depuis la liste de recherche
+const selectProduct = async (product: Product) => {
+  try {
+    // Vérifier le stock disponible
+    const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${product.id}`, {
+      method: 'GET',
+      server: false
+    });
+
+    if (!stockData.value || !stockData.value.quantite || stockData.value.quantite < 1) {
+      alert("Stock insuffisant pour ce produit");
+      return;
+    }
+
     invoice.value.items.push({
       id: product.id,
       reference: product.reference,
@@ -173,10 +242,12 @@ const addItem = () => {
       quantity: 1,
       price: product.prix,
     });
-    currentProductRef.value = "";
-  } else {
-    // Optionnel: afficher un message d'erreur si le produit n'est pas trouvé
-    alert("Produit non trouvé. Veuillez vérifier la référence.");
+    
+    searchQuery.value = "";
+    showProductSearch.value = false;
+  } catch (err) {
+    console.error("Erreur lors de la vérification du stock:", err);
+    alert("Erreur lors de la vérification du stock");
   }
 };
 
@@ -191,12 +262,13 @@ const subtotal = computed(() => {
   );
 });
 
-const taxAmount = computed(() => {
-  return subtotal.value * (invoice.value.taxRate / 100);
-});
+// const taxAmount = computed(() => {
+//   return subtotal.value * (invoice.value.taxRate / 100);
+// });
 
 const total = computed(() => {
-  return subtotal.value + taxAmount.value;
+  // return subtotal.value + taxAmount.value;
+  return subtotal.value ;
 });
 
 // Calcul du montant restant à payer
@@ -208,7 +280,9 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat("fr-FR", {
     style: "currency",
     currency: "XAF",
-  }).format(amount);
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  }).format(amount).replace(/\s/g, ' ');
 };
 
 const printInvoice = () => {
@@ -229,11 +303,186 @@ onMounted(async () => {
   await Promise.all([fetchProducts(), fetchPartners()]);
 });
 
+// Type augmentation for jsPDF
+declare module 'jspdf' {
+  interface jsPDF {
+    autoTable: typeof autoTable;
+    lastAutoTable: {
+      finalY: number;
+    };
+  }
+}
+
+// Constantes pour la facture
+const COMPANY_INFO = {
+  name: "ETS WALNER TECH",
+  description: "Vente des Ordinateurs, Équipements Électroniques\nTéléphone portable et Accessoires, Import - Export\nMaintenance Ordinateur ; Installation Électronique",
+  address: "Situé au Centre Commercial PELICAN Btq 221",
+  nui: "P100017639977 B",
+  phones: ["656 89 47 73", "651 70 97 52"],
+  notice: "Les Marchandises vendues ne sont ni reprises ni échangées",
+  warranty: "Garantie Produit – Service Après-Vente\nCe produit est couvert par une garantie de 6 mois à compter de la date d'achat figurant sur cette facture.\nEn cas de dysfonctionnement non causé par une mauvaise utilisation, vous pouvez bénéficier d'un service après-vente en présentant cette facture.\n\n Cette garantie couvre uniquement les défauts de fabrication et ne s'applique pas aux dommages physiques ou à l'usure normale.\n\nPour toute demande de prise en charge, contactez notre service client."
+};
+
+// Fonction pour générer le PDF
+const generatePDF = () => {
+  try {
+    const doc = new jsPDF();
+
+    // --- En-tête entreprise ---
+    // Bandeau bleu clair
+    doc.setFillColor(0, 120, 212);
+    doc.rect(0, 0, 210, 30, 'F');
+
+    // Logo (optionnel)
+    try {
+      doc.addImage('/img/logo.jpg', 'JPEG', 10, 5, 20, 20);
+    } catch (err) {
+      // ignore si pas de logo
+    }
+
+    // Nom entreprise
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('times', 'bold');
+    doc.setFontSize(18);
+    doc.text(COMPANY_INFO.name, 35, 15);
+
+    // Adresse et NUI
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(COMPANY_INFO.address, 35, 22);
+    doc.text(`NUI: ${COMPANY_INFO.nui}  Tél.: ${COMPANY_INFO.phones.join(' / ')}`, 35, 27);
+
+    // --- Titre facture ---
+    doc.setTextColor(0, 120, 212);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`FACTURE N° ${invoice.value.number}`, 150, 15, { align: 'right' });
+
+    // --- Infos client/partenaire et date ---
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Date : ${new Date(invoice.value.date).toLocaleDateString()}`, 150, 22, { align: 'right' });
+
+    let y = 35;
+    doc.setFontSize(11);
+    if (invoice.value.recipientType === 'client') {
+      doc.text(`Client : ${invoice.value.client.prenom} ${invoice.value.client.nom}`, 10, y);
+      doc.text(`Téléphone : ${invoice.value.client.telephone}`, 10, y + 6);
+    } else {
+      doc.text(`Partenaire : ${invoice.value.partenaire}`, 10, y);
+    }
+
+    // --- Tableau des articles ---
+    y += 14;
+    autoTable(doc, {
+      startY: y,
+      head: [[
+        "Référence", "Désignation", "Prix unitaire", "Quantité", "Total"
+      ]],
+      body: invoice.value.items.map(item => [
+        item.reference,
+        item.name,
+        formatCurrency(item.price),
+        item.quantity,
+        formatCurrency(item.price * item.quantity)
+      ]),
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 120, 212],
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 11,
+        halign: 'center'
+      },
+      bodyStyles: {
+        fontSize: 10,
+        halign: 'center'
+      },
+      styles: {
+        cellPadding: 3,
+        lineColor: [220, 220, 220],
+        lineWidth: 0.5,
+        font: 'helvetica'
+      },
+      alternateRowStyles: { fillColor: [245, 250, 255] },
+      margin: { left: 10, right: 10 }
+    });
+
+    // --- Totaux et paiement ---
+    let finalY = (doc as any).lastAutoTable.finalY + 10;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 120, 212);
+    doc.text("TOTAL", 150, finalY);
+    doc.setTextColor(0, 0, 0);
+    doc.text(formatCurrency(total.value), 200, finalY, { align: "right" });
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Montant versé :", 150, finalY + 8);
+    doc.text(formatCurrency(invoice.value.montantVerse), 200, finalY + 8, { align: "right" });
+    doc.text("Reste à payer :", 150, finalY + 16);
+    doc.text(formatCurrency(reste.value), 200, finalY + 16, { align: "right" });
+
+// --- Notice ---
+doc.setFontSize(9);
+doc.setTextColor(100, 100, 100);
+doc.text(COMPANY_INFO.notice, 10, finalY + 28);
+
+// --- Garantie (rectangle gris, texte wrap, hauteur dynamique) ---
+doc.setFontSize(8);
+doc.setTextColor(0, 0, 0);
+const warrantyLines = doc.splitTextToSize(COMPANY_INFO.warranty, 180);
+const warrantyBoxY = finalY + 35;
+const lineHeight = 4;
+const warrantyBoxHeight = warrantyLines.length * lineHeight + 8; // 8px de padding vertical
+
+doc.setFillColor(245, 245, 245);
+doc.roundedRect(10, warrantyBoxY, 190, warrantyBoxHeight, 3, 3, 'F');
+
+let warrantyTextY = warrantyBoxY + 5;
+warrantyLines.forEach(line => {
+  doc.text(line, 15, warrantyTextY);
+  warrantyTextY += lineHeight;
+});
+
+// --- Signatures (toujours sous la garantie, jamais dessus) ---
+const signatureY = warrantyBoxY + warrantyBoxHeight + 10;
+doc.setFontSize(10);
+doc.setTextColor(0, 0, 0);
+doc.text("Signature Client", 20, signatureY);
+doc.text("Signature Vendeur", 150, signatureY);
+
+    // --- Sauvegarde ---
+    doc.save(`${invoice.value.number}.pdf`);
+    return true;
+  } catch (err) {
+    console.error("Erreur lors de la génération du PDF:", err);
+    return false;
+  }
+};
+
+// Fonction pour convertir un nombre en lettres
+const numberToWords = (number: number): string => {
+  // Cette fonction devrait être implémentée pour convertir les nombres en lettres
+  // Pour l'instant, retourne une chaîne simple
+  return number.toString();
+};
+
+// Modification de la fonction saveInvoice pour inclure la génération du PDF
 const saveInvoice = async () => {
   const { success, error } = useNotification();
 
   try {
-    // Vérifications initiales
+    // Utiliser l'ID de l'utilisateur connecté pour created_by
+    // const userId = auth.user?.id; 
+    if (!userId) { // Vérifier si l'utilisateur est connecté
+        error("Utilisateur non connecté.");
+        return;
+    }
+
     if (invoice.value.items.length === 0) {
       error("Veuillez ajouter au moins un article");
       return;
@@ -243,6 +492,20 @@ const saveInvoice = async () => {
       error("Veuillez sélectionner un type de destinataire");
       return;
     }
+
+    // Vérifier le stock pour tous les articles avant de procéder
+    for (const item of invoice.value.items) {
+      const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${item.id}`, {
+        method: 'GET',
+        server: false
+      });
+
+      if (!stockData.value || !stockData.value.quantite || stockData.value.quantite < item.quantity) {
+        error(`Stock insuffisant pour ${item.name}: ${stockData.value?.quantite || 0} disponible(s), ${item.quantity} demandé(s)`);
+        return;
+      }
+    }
+
     let nomFacture : string = "";
     if (invoice.value.recipientType=="client"){
         nomFacture=invoice.value.client.nom + ' ' +invoice.value.client.prenom
@@ -250,7 +513,7 @@ const saveInvoice = async () => {
     if (invoice.value.recipientType=="partenaire"){
         nomFacture=invoice.value.partenaire
     }
-    // Préparation des données de la facture
+    
     const factureData = {
       type: invoice.value.recipientType,
       total: total.value,
@@ -258,13 +521,11 @@ const saveInvoice = async () => {
       status: reste.value > 0 ? 'encours' : 'payé',
       nom: nomFacture,
       numero: invoice.value.number,
-      created_at: new Date().toISOString(),
-      boutique: 1, // À remplacer par l'ID réel de la boutique
-      created_by: auth.user?.id // À remplacer par l'ID de l'utilisateur connecté
+      boutique: auth.user?.boutique || 1, 
+      created_by: userId
     };
 
-    // 1. Enregistrement de la facture principale
-    const { data: facture, error: factureError } = await useApi(
+    const { data: facture, error: factureError } = await useApi<FactureResponse>(
       'http://127.0.0.1:8000/api/factures/',
       {
         method: 'POST',
@@ -279,158 +540,165 @@ const saveInvoice = async () => {
       return;
     }
 
-    // 2. Enregistrement des commandes selon le type
-    let endpoint = '';
-    const commandes = invoice.value.items.map(item => {
-      const product = products.value.find(p => p.reference === item.reference);
-      return {
-        quantite: item.quantity,
-        prix_unitaire_fcfa: item.price,
-        total: item.quantity * item.price,
-        produit: product?.id || 0,
-        facture: facture.value.id
-      };
-    });
-
     if (invoice.value.recipientType === 'client') {
-        
-    const endpoint = 'http://127.0.0.1:8000/api/commandes-client/';
-    let isSuccess: boolean = false;
-        
-  for (const InvoiceItem of invoice.value.items) {
-    const invoiceBody: InvoiceBody = {
-      total: InvoiceItem.quantity * InvoiceItem.price,
-      quantite: InvoiceItem.quantity,
-      prix_unitaire_fcfa: InvoiceItem.price,
-      nom: invoice.value.client.nom,
-      prenom: invoice.value.client.prenom,
-      telephone: invoice.value.client.telephone,
-      produit: InvoiceItem.id,
-      facture: facture.value?.id,
-    };
+      const endpoint = 'http://127.0.0.1:8000/api/commandes-client/';
+      let isSuccess = true;
 
-    try {
-      const { data } = await useApi(endpoint, {
-        method: 'POST',
-        body: JSON.stringify(invoiceBody),
-        server: false
-      });
-      isSuccess = true;
-      console.log(`Facture envoyée pour le produit ${InvoiceItem.id}:`, data);
+      for (const item of invoice.value.items) {
+        // Créer la commande
+        const invoiceBody: InvoiceBody = {
+          total: item.quantity * item.price,
+          quantite: item.quantity,
+          prix_unitaire_fcfa: item.price,
+          nom: invoice.value.client.nom,
+          prenom: invoice.value.client.prenom,
+          telephone: invoice.value.client.telephone,
+          produit_id: item.id,
+          facture: facture.value?.id,
+        };
 
-    } catch (error) {
-      console.error(`Erreur lors de l'envoi du produit ${InvoiceItem.id}:`, error);
-      isSuccess = false;
+        try {
+          // Enregistrer la commande
+          const { data: commandeData } = await useApi(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(invoiceBody),
+            server: false
+          });
 
-    }
+          // Mettre à jour le stock
+          const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${item.id}`, {
+            method: 'GET',
+            server: false
+          });
 
-  }
-
-  if (isSuccess) {
-    success(`Facture client ${invoice.value.number} enregistrée`);
-    
-  }
-    
-
-
-
-
-      // commandes.forEach(cmd => cmd.client = client.value?.id);
-    } else {
-      endpoint = 'http://127.0.0.1:8000/api/commandes-partenaire/';
-      let isSuccess: boolean = false;
-        
-        for (const InvoiceItem of invoice.value.items) {
-          const InvoiceBodyPartners: InvoiceBodyPartners = {
-            total: InvoiceItem.quantity * InvoiceItem.price,
-            quantite: InvoiceItem.quantity,
-            prix_unitaire_fcfa: InvoiceItem.price,
-            partenaire: partners.value.id,
-            produit: InvoiceItem.id,
-            facture: facture.value?.id,
-          };
-      
-          try {
-            const { data } = await useApi(endpoint, {
-              method: 'POST',
-              body: JSON.stringify(InvoiceBodyPartners),
+          if (stockData.value && typeof stockData.value.quantite === 'number') {
+            const nouveauStock = stockData.value.quantite - item.quantity;
+            
+            await useApi(`http://127.0.0.1:8000/api/produits/${item.id}/`, {
+              method: 'PATCH',
+              body: JSON.stringify({ quantite: nouveauStock }),
               server: false
             });
-            isSuccess = true;
-            const selectedPartner = partners.value.find(
+          }
+
+        } catch (err) {
+          console.error(`Erreur pour l'article ${item.id}:`, err);
+          isSuccess = false;
+          break;
+        }
+      }
+
+    if (isSuccess) {
+        // Générer le PDF
+      const pdfGenerated = generatePDF();
+      if (pdfGenerated) {
+          success(`Facture client ${invoice.value.number} enregistrée et téléchargée`);
+      } else {
+        error("Erreur lors de la génération du PDF");
+      }
+      
+        // Réinitialiser le formulaire
+      invoice.value = {
+        number: generateInvoiceNumber(),
+        date: new Date().toISOString().split("T")[0],
+        recipientType: "",
+        client: { nom: "", prenom: "", telephone: "" },
+        partenaire: "",
+        items: [],
+        taxRate: 10,
+        montantVerse: 0,
+      };
+      }
+
+    } else {
+      // Logique pour les partenaires...
+      const endpoint = 'http://127.0.0.1:8000/api/commandes-partenaire/';
+      let isSuccess = true;
+
+      const selectedPartner = partners.value.find(
         p => `${p.prenom} ${p.nom}` === invoice.value.partenaire
       );
 
-            if (!selectedPartner?.id) {
-            isSuccess = false;
-
+      if (!selectedPartner?.id) {
         error("Partenaire introuvable");
         return;
       }
-            console.log(`Facture envoyée pour le produit ${InvoiceItem.id}:`, data);
-      
-          } catch (error) {
-            console.error(`Erreur lors de l'envoi du produit ${InvoiceItem.id}:`, error);
-            isSuccess = false;
-      
+
+      for (const item of invoice.value.items) {
+        const invoiceBodyPartners: InvoiceBodyPartners = {
+          quantite: item.quantity,
+          prix_unitaire_fcfa: item.price,
+          partenaire: selectedPartner.id,
+          produit_id: item.id,
+          facture: facture.value?.id,
+        };
+
+        try {
+          await useApi(endpoint, {
+            method: 'POST',
+            body: JSON.stringify(invoiceBodyPartners),
+            server: false
+          });
+
+          // Mettre à jour le stock
+          const { data: stockData } = await useApi<StockResponse>(`http://127.0.0.1:8000/api/produits/${item.id}`, {
+            method: 'GET',
+            server: false
+          });
+
+          if (stockData.value && typeof stockData.value.quantite === 'number') {
+            const nouveauStock = stockData.value.quantite - item.quantity;
+            
+            await useApi(`http://127.0.0.1:8000/api/produits/${item.id}/`, {
+              method: 'PATCH',
+              body: JSON.stringify({ quantite: nouveauStock }),
+              server: false
+            });
           }
-      
+
+        } catch (err) {
+          console.error(`Erreur pour l'article ${item.id}:`, err);
+          isSuccess = false;
+          break;
         }
-      
-        if (isSuccess) {
-          success(`Facture partenaire ${invoice.value.number} enregistrée`);
-          
+      }
+
+      if (isSuccess) {
+        // Générer le PDF
+        const pdfGenerated = generatePDF();
+        if (pdfGenerated) {
+          success(`Facture partenaire ${invoice.value.number} enregistrée et téléchargée`);
+        } else {
+          error("Erreur lors de la génération du PDF");
         }
-          
 
-
-
-
-      // const selectedPartner = partners.value.find(
-      //   p => `${p.prenom} ${p.nom}` === invoice.value.partenaire
-      // );
-
-      // if (!selectedPartner?.id) {
-      //   error("Partenaire introuvable");
-      //   return;
-      // }
-
-      // commandes.forEach(cmd => cmd.partenaire = selectedPartner.id);
+        // Réinitialiser le formulaire
+        invoice.value = {
+          number: generateInvoiceNumber(),
+          date: new Date().toISOString().split("T")[0],
+          recipientType: "",
+          client: { nom: "", prenom: "", telephone: "" },
+          partenaire: "",
+          items: [],
+          taxRate: 10,
+          montantVerse: 0,
+        };
+      }
     }
 
-    // // Envoi des commandes
-    // const { error: commandesError } = await useApi(endpoint, {
-    //   method: 'POST',
-    //   body: commandes,
-    //   server: false
-    // // });
-
-    // if (commandesError.value) {
-    //   error("Erreur lors de l'enregistrement des articles");
-    //   return;
-    // }
-
-    // Succès
-    // success(`Facture ${invoice.value.number} enregistrée`);
-    // console.log("Facture créée:", facture.value);
-
-    // Réinitialisation
-    invoice.value = {
-      number: generateInvoiceNumber(),
-      date: new Date().toISOString().split("T")[0],
-      recipientType: "",
-      client: { nom: "", prenom: "", telephone: "" },
-      partenaire: "",
-      items: [],
-      taxRate: 10,
-      montantVerse: 0,
-    };
-
   } catch (err) {
-    // error("Erreur inattendue");
+    error("Erreur inattendue");
     console.error("Erreur complète:", err);
   }
 };
+
+// Computed pour le nombre total d'articles
+const totalItems = computed(() => {
+  return invoice.value.items.reduce((sum, item) => sum + item.quantity, 0);
+});
+
+// Utility function for delay
+const delay = (ms: number) => new Promise(resolve => window.setTimeout(resolve, ms));
 </script>
 
 <template>
@@ -495,19 +763,42 @@ const saveInvoice = async () => {
         </div>
 
         <!-- Invoice Items -->
-        <div class="mb-6">
-          <h2 class="text-xl font-semibold text-blue-400 mb-3">
-            Articles de la Facture
-          </h2>
+    <div class="mb-6">
+      <h2 class="text-xl font-semibold text-blue-400 mb-3">
+        Articles de la Facture
+      </h2>
 
-          <!-- Ajout d'article par référence -->
-          <div class="flex flex-wrap sm:flex-nowrap items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
-            <UInput v-model="currentProductRef" color="blue" variant="outline" placeholder="Référence du produit"
-              class="flex-grow w-full sm:w-auto" />
-            <UButton @click="addItem" color="blue" variant="solid" icon="i-heroicons-plus"
-              class="w-full flex items-center justify-center sm:w-auto">
-              Ajouter
-            </UButton>
+      <!-- Recherche de produit avec suggestions -->
+          <div class="relative mb-4">
+        <UInput 
+          v-model="searchQuery"
+          color="blue"
+          variant="outline"
+          placeholder="Rechercher un produit par référence ou nom"
+          class="w-full"
+          @focus="showProductSearch = true"
+              @blur="async () => { await delay(200); showProductSearch = false }"
+        />
+        
+        <!-- Liste des suggestions -->
+        <div v-if="showProductSearch && filteredProducts.length > 0" 
+             class="absolute z-10 w-full mt-1 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          <div v-for="product in filteredProducts" 
+               :key="product.id"
+               @click="selectProduct(product)"
+                   class="p-3 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer border-b dark:border-gray-700">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <div class="font-medium text-gray-900 dark:text-gray-100">{{ product.nom }}</div>
+                    <div class="text-sm text-gray-600 dark:text-gray-400">Réf: {{ product.reference }}</div>
+                  </div>
+                  <div class="text-blue-500 font-medium">{{ formatCurrency(product.prix) }}</div>
+                </div>
+                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                  Stock disponible: {{ product.quantite || 0 }}
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Liste des articles ajoutés -->
@@ -555,10 +846,7 @@ const saveInvoice = async () => {
             <span class="text-sm font-medium text-gray-500 dark:text-gray-300">Sous-total :</span>
             <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ formatCurrency(subtotal) }}</span>
           </div>
-          <div class="flex justify-between items-center py-2 border-t border-gray-200 dark:border-gray-600">
-            <span class="text-sm font-medium text-gray-500 dark:text-gray-300">Taxe ({{ invoice.taxRate }}%):</span>
-            <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ formatCurrency(taxAmount) }}</span>
-          </div>
+           
           <div class="flex justify-between items-center py-2 border-t border-gray-200 dark:border-gray-600">
             <span class="text-base font-medium text-gray-900 dark:text-gray-100">Total :</span>
             <span class="text-base font-medium text-gray-900 dark:text-gray-100">{{ formatCurrency(total) }}</span>
@@ -636,10 +924,10 @@ const saveInvoice = async () => {
       <div class="mb-6 text-right">
         <p><strong>Total produits :</strong> {{ totalItems }}</p>
         <p><strong>Sous-total :</strong> {{ formatCurrency(subtotal) }}</p>
-        <p>
-          <strong>Taxe ({{ invoice.taxRate }}%):</strong>
-          {{ formatCurrency(taxAmount) }}
-        </p>
+        // <p>
+        //   <strong>Taxe ({{ invoice.taxRate }}%):</strong>
+        //   {{ formatCurrency(taxAmount) }}
+        // </p>
         <p class="text-lg font-bold text-blue-400"><strong>Total :</strong> {{ formatCurrency(total) }}</p>
       </div>
     </div>
