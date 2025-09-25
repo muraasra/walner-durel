@@ -69,6 +69,14 @@ const schema = z.object({
   prix: z.number(),
   prix_achat: z.number().optional(),
   actif: z.boolean(),
+  // Champs spécifiques pour les ordinateurs
+  ram: z.string().optional(),
+  stockage: z.string().optional(),
+  processeur: z.string().optional(),
+  annee: z.string().optional(),
+  marque: z.string().optional(),
+  modele: z.string().optional(),
+  systeme_exploitation: z.string().optional(),
 });
 
 type Schema = z.output<typeof schema>;
@@ -82,6 +90,14 @@ const state = ref({
   prix: props.product.prix,
   prix_achat: props.product.prix_achat || 0,
   actif: props.product.actif,
+  // Champs spécifiques pour les ordinateurs
+  ram: props.product.ram || "",
+  stockage: props.product.stockage || "",
+  processeur: props.product.processeur || "",
+  annee: props.product.annee || "",
+  marque: props.product.marque || "",
+  modele: props.product.modele || "",
+  systeme_exploitation: props.product.systeme_exploitation || "",
 });
 
 async function onSubmit(event: FormSubmitEvent<Schema>) {
@@ -176,6 +192,31 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
               placeholder="Description du produit"
             />
           </UFormGroup>
+
+          <!-- Champs spécifiques pour les ordinateurs -->
+          <template v-if="state.category === 'ordinateur'">
+            <UFormGroup label="RAM" name="ram">
+              <UInput v-model="state.ram" placeholder="Ex: 8GB DDR4" />
+            </UFormGroup>
+            <UFormGroup label="Stockage" name="stockage">
+              <UInput v-model="state.stockage" placeholder="Ex: SSD 256GB" />
+            </UFormGroup>
+            <UFormGroup label="Processeur" name="processeur">
+              <UInput v-model="state.processeur" placeholder="Ex: Intel Core i5" />
+            </UFormGroup>
+            <UFormGroup label="Année" name="annee">
+              <UInput v-model="state.annee" placeholder="Ex: 2023" />
+            </UFormGroup>
+            <UFormGroup label="Marque" name="marque">
+              <UInput v-model="state.marque" placeholder="Ex: Dell" />
+            </UFormGroup>
+            <UFormGroup label="Modèle" name="modele">
+              <UInput v-model="state.modele" placeholder="Ex: Latitude 5420" />
+            </UFormGroup>
+            <UFormGroup label="Système d'exploitation" name="systeme_exploitation">
+              <UInput v-model="state.systeme_exploitation" placeholder="Ex: Windows 11" />
+            </UFormGroup>
+          </template>
 
           <UFormGroup label="Actif" name="actif">
             <UToggle v-model="state.actif" />

@@ -24,10 +24,10 @@
 
     <div class="bg-white shadow-md rounded-lg border p-4 mb-6">
       <h2 class="text-lg font-semibold text-blue-600 mb-2">Utilisateurs (Admin/Superadmin)</h2>
-      <p>Expliquez la liste des utilisateurs pour les rôles administrateur/superadministrateur (sans ajout/suppression).</p>
+      <p>Expliquez la liste des utilisateurs pour les rôles administrateur/superadmin (sans ajout/suppression).</p>
     </div>
 
-     <div class="bg-white shadow-md rounded-lg border p-4 mb-6">
+    <div class="bg-white shadow-md rounded-lg border p-4 mb-6">
       <h2 class="text-lg font-semibold text-blue-600 mb-2">Superadmin Uniquement</h2>
       <p>Listez et expliquez les fonctionnalités spécifiques au rôle Superadmin, comme la visibilité du prix d'achat.</p>
     </div>

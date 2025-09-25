@@ -90,9 +90,17 @@ const totalDetteGlobale = computed(() =>
   allFactures.value.reduce((sum, f) => sum + (f.reste), 0)
 );
 
-const chiffreAffaireEncaisse = computed(() =>
-  allFactures.value.reduce((sum, f) => sum + ((f.total) - (f.reste)), 0)
-);
+const chiffreAffaireTotal = computed(() => {
+  return allFactures.value.reduce((sum, f) => sum + f.total, 0);
+});
+
+const chiffreAffaireEncaisse = computed(() => {
+  return allFactures.value.reduce((sum, f) => sum + (f.total - f.reste), 0);
+});
+
+const chiffreAffaireDette = computed(() => {
+  return allFactures.value.reduce((sum, f) => sum + f.reste, 0);
+});
 
 // --- Méthodes utilitaires ---
 function formatCurrency(value: number): string {

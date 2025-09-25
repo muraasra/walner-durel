@@ -9,6 +9,14 @@ export type Produit = {
   prix_achat: number;
   actif: boolean;
   boutique: number;
+  // Champs spécifiques pour les ordinateurs
+  ram?: string;
+  stockage?: string;
+  processeur?: string;
+  annee?: string;
+  marque?: string;
+  modele?: string;
+  systeme_exploitation?: string;
 };
 
 

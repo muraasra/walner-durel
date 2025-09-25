@@ -111,7 +111,6 @@ export const NAVIGATION_ITEMS_SUPERADMIN = [
       link: "/produits",
       icon: "i-heroicons-squares-plus",
     },
-
     {
       name: "Stock des Produits",
       link: "/stock_produit",
@@ -124,8 +123,13 @@ export const NAVIGATION_ITEMS_SUPERADMIN = [
       link: "/utilisateurs",
       icon: "i-heroicons-user",
     },
+    {
+      name: "Journal",
+      link: "/journal",
+      icon: "i-heroicons-clipboard-document-list",
+    },
   ],
-    [ 
+  [ 
     {
       name: "Partenaires",
       link: "/partenaires",

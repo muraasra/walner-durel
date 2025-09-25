@@ -29,6 +29,14 @@ const schema = z.object({
   category: z.string(),
   quantite: z.number(),
   description: z.string(),
+  // Champs spécifiques pour les ordinateurs
+  ram: z.string().optional(),
+  stockage: z.string().optional(),
+  processeur: z.string().optional(),
+  annee: z.string().optional(),
+  marque: z.string().optional(),
+  modele: z.string().optional(),
+  systeme_exploitation: z.string().optional(),
 });
 
 type Schema = z.output<typeof schema>;
@@ -41,11 +49,18 @@ const state = ref({
   category: "",
   quantite: 0,
   description: "",
+  // Champs spécifiques pour les ordinateurs
+  ram: "",
+  stockage: "",
+  processeur: "",
+  annee: "",
+  marque: "",
+  modele: "",
+  systeme_exploitation: "",
 });
 
-// Computed pour vérifier si l'utilisateur est super-admin
+// Computed pour vérifier si l'utilisateur est superadmin
 const isSuperAdmin = computed(() => {
-  console.log('User role:', userRole.value);
   return userRole.value === "superadmin";
 });
 
@@ -80,11 +95,33 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       return;
     }
 
-    emit("creer-produit", {
+    // Préparer les données à envoyer
+    const productData = {
       ...event.data,
       actif: true,
       boutique: 1,
-    });
+    };
+
+    // Si c'est un ordinateur, s'assurer que tous les champs sont présents et correctement formatés
+    if (event.data.category === 'ordinateur') {
+      // Convertir les champs vides en null
+      const computerFields = ['ram', 'stockage', 'processeur', 'annee', 'marque', 'modele', 'systeme_exploitation'];
+      computerFields.forEach(field => {
+        productData[field] = event.data[field]?.trim() || null;
+      });
+
+      // Convertir l'année en nombre si elle n'est pas vide
+      if (productData.annee) {
+        try {
+          productData.annee = parseInt(productData.annee);
+        } catch (e) {
+          productData.annee = null;
+        }
+      }
+    }
+
+    console.log('Données envoyées:', productData); // Pour le débogage
+    emit("creer-produit", productData);
 
     success("Produit créé avec succès!");
     isOpen.value = false;
@@ -96,6 +133,14 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
       category: "",
       quantite: 0,
       description: "",
+      // Champs spécifiques pour les ordinateurs
+      ram: "",
+      stockage: "",
+      processeur: "",
+      annee: "",
+      marque: "",
+      modele: "",
+      systeme_exploitation: "",
     };
   } catch (err) {
     console.error("Erreur lors de la création du produit:", err);
@@ -125,7 +170,7 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
           <UFormGroup label="Prix de vente" name="prix">
             <UInput type="number" v-model="state.prix" placeholder="Prix de vente" color="blue"/>
           </UFormGroup>
-          <!-- Afficher le champ prix d'achat uniquement pour les super-admin -->
+          <!-- Afficher le champ prix d'achat uniquement pour les superadmin -->
           <UFormGroup v-if="isSuperAdmin" label="Prix d'achat" name="prix_achat">
             <UInput type="number" v-model="state.prix_achat" placeholder="Prix d'achat" color="blue"/>
           </UFormGroup>
@@ -157,6 +202,32 @@ async function onSubmit(event: FormSubmitEvent<Schema>) {
           <UFormGroup label="Description" name="description">
             <UTextarea v-model="state.description" placeholder="Description du produit" color="blue"/>
           </UFormGroup>
+
+          <!-- Champs spécifiques pour les ordinateurs -->
+          <template v-if="state.category === 'ordinateur'">
+            <UFormGroup label="RAM" name="ram">
+              <UInput v-model="state.ram" placeholder="Ex: 8GB DDR4" color="blue"/>
+            </UFormGroup>
+            <UFormGroup label="Stockage" name="stockage">
+              <UInput v-model="state.stockage" placeholder="Ex: SSD 256GB" color="blue"/>
+            </UFormGroup>
+            <UFormGroup label="Processeur" name="processeur">
+              <UInput v-model="state.processeur" placeholder="Ex: Intel Core i5" color="blue"/>
+            </UFormGroup>
+            <UFormGroup label="Année" name="annee">
+              <UInput v-model="state.annee" placeholder="Ex: 2023" color="blue"/>
+            </UFormGroup>
+            <UFormGroup label="Marque" name="marque">
+              <UInput v-model="state.marque" placeholder="Ex: Dell" color="blue"/>
+            </UFormGroup>
+            <UFormGroup label="Modèle" name="modele">
+              <UInput v-model="state.modele" placeholder="Ex: Latitude 5420" color="blue"/>
+            </UFormGroup>
+            <UFormGroup label="Système d'exploitation" name="systeme_exploitation">
+              <UInput v-model="state.systeme_exploitation" placeholder="Ex: Windows 11" color="blue"/>
+            </UFormGroup>
+          </template>
+
           <UButton type="submit" color="blue">Créer le produit</UButton>
         </UForm>
       </div>

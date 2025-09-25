@@ -11,6 +11,7 @@ interface User {
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
+  const baseUrl = ref('http://127.0.0.1:8000')
 
   const cookieToken = useCookie<string | null>('auth_token', {
     default: () => null,
@@ -63,5 +64,5 @@ export const useAuthStore = defineStore('auth', () => {
     restoreUser()
   }
 
-  return { user, token, setToken, setUser, logout }
+  return { user, token, baseUrl, setToken, setUser, logout }
 })

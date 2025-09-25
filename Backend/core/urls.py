@@ -14,6 +14,8 @@ router.register(r'commandes-client', CommandeClientViewSet)
 router.register(r'commandes-partenaire', CommandePartenaireViewSet)
 router.register(r'versements', VersementViewSet)
 router.register(r'historiques-stock', HistoriqueStockViewSet)
+router.register(r'journaux', JournalViewSet)
+router.register(r'users', UserViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

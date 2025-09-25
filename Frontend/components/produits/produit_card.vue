@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import editer_produit_modal from "./editer_produit_modal.vue";
 import voir_detail_produit from "./voir_detail_produit.vue";
+import { ref, computed } from 'vue';
 
 defineProps<{
   product: {
@@ -11,10 +12,34 @@ defineProps<{
     description: string;
     quantite: number;
     prix: number;
+    prix_achat?: number;
     actif: boolean;
     boutique: number;
+    // Champs spécifiques pour les ordinateurs
+    ram?: string;
+    disque_dur?: string;
+    processeur?: string;
+    generation?: string;
+    carte_graphique?: string;
+    systeme_exploitation?: string;
   };
 }>();
+
+const user = ref(null);
+
+if (process.client) {
+  const userData = localStorage.getItem('user');
+  if (userData) {
+    user.value = JSON.parse(userData);
+  }
+}
+
+const userRole = computed(() => user.value?.role || "user");
+
+// Computed pour vérifier si l'utilisateur est superadmin
+const isSuperAdmin = computed(() => {
+  return userRole.value === "superadmin";
+});
 
 const emit = defineEmits(["delete-product", "editer-produit"]);
 
@@ -35,6 +60,7 @@ const onDelete = (product: any) => emit("delete-product", product);
           {{ product.category }}
         </UBadge>
         <h4 class="text-blue-400">{{ product.prix }} XAF</h4>
+        <h4 v-if="isSuperAdmin && product.prix_achat" class="text-green-600">Prix d'achat: {{ product.prix_achat }} XAF</h4>
         <h4 class="block">Quantité: {{ product.quantite }}</h4>
       </div>
       <div class="px-4 mt-4 mb-5 flex items-center gap-x-2">

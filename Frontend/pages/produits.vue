@@ -37,24 +37,58 @@ async function ajouterProduit(product: Partial<Produit>) {
 
 // * Fonction pour modifier un produit
 async function editerProduit(updatedProduit: Produit) {
-    const { data, error } = await useApi<Produit>(
-        `http://127.0.0.1:8000/api/produits/${updatedProduit.id}/`,
-        {
-            method: 'PATCH', 
-            body: JSON.parse(JSON.stringify(updatedProduit)),
+    try {
+        // Préparer les données à envoyer
+        const productData = { ...updatedProduit };
+        
+        // Si c'est un ordinateur, formater correctement les champs
+        if (productData.category === 'ordinateur') {
+            // Convertir les champs vides en null
+            const computerFields = ['ram', 'stockage', 'processeur', 'marque', 'modele', 'systeme_exploitation'];
+            computerFields.forEach(field => {
+                productData[field] = productData[field]?.trim() || null;
+            });
+            
+            // Convertir l'année en nombre ou null
+            if (productData.annee) {
+                try {
+                    productData.annee = typeof productData.annee === 'string' 
+                        ? parseInt(productData.annee) 
+                        : productData.annee;
+                } catch (e) {
+                    productData.annee = null;
+                }
+            } else {
+                productData.annee = null;
+            }
         }
-    );
 
-    if (!error.value && data.value) {
-        // Met à jour dans la liste locale
-        const index = produits.value?.findIndex((p) => p.id === data.value.id);
-        if (index !== undefined && index !== -1) {
-            produits.value[index] = data.value;
-            // Sort the products in descending order after editing
-            produits.value.sort((a, b) => b.id - a.id);
+        console.log('Données envoyées pour modification:', productData); // Pour le débogage
+
+        const { data, error } = await useApi<Produit>(
+            `http://127.0.0.1:8000/api/produits/${productData.id}/`,
+            {
+                method: 'PATCH', 
+                body: productData,
+            }
+        );
+
+        if (!error.value && data.value) {
+            // Met à jour dans la liste locale
+            const index = produits.value?.findIndex((p) => p.id === data.value.id);
+            if (index !== undefined && index !== -1) {
+                produits.value[index] = data.value;
+                // Sort the products in descending order after editing
+                produits.value.sort((a, b) => b.id - a.id);
+            }
+            success("Produit modifié avec succès!");
+        } else {
+            console.error("Erreur lors de la mise à jour du produit", error.value);
+            error(`Erreur lors de la modification du produit: ${error.value?.message || 'Une erreur est survenue'}`);
         }
-    } else {
-        console.error("Erreur lors de la mise à jour du produit", error.value);
+    } catch (err) {
+        console.error("Exception lors de la modification du produit:", err);
+        error("Une erreur est survenue lors de la modification du produit");
     }
 }
 
