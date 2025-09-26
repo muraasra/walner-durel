@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Boutique, User, Produit, PrixProduit, Partenaire, Facture, CommandeClient, CommandePartenaire, Versement, HistoriqueStock
+from .models import Boutique, User, Produit, PrixProduit, Partenaire, Facture, CommandeClient, CommandePartenaire, Versement, HistoriqueStock,Journal, Debt, DebtPayment
 
 # Enregistrement simple
 admin.site.register(Boutique)
@@ -12,3 +12,6 @@ admin.site.register(CommandeClient)
 admin.site.register(CommandePartenaire)
 admin.site.register(Versement)
 admin.site.register(HistoriqueStock)
+admin.site.register(Journal)
+admin.site.register(Debt)
+admin.site.register(DebtPayment)

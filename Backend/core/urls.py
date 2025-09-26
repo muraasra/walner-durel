@@ -1,8 +1,7 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
+
 from .views import *
-from django.contrib import admin
-from django.urls import path,include
 
 router = DefaultRouter()
 router.register(r'boutiques', BoutiqueViewSet)
@@ -16,7 +15,9 @@ router.register(r'versements', VersementViewSet)
 router.register(r'historiques-stock', HistoriqueStockViewSet)
 router.register(r'journaux', JournalViewSet)
 router.register(r'users', UserViewSet)
+router.register(r'debts', DebtViewSet, basename='debt')
 
 urlpatterns = [
+    path('metrics/', DashboardMetricsView.as_view(), name='dashboard-metrics'),
     path('', include(router.urls)),
 ]

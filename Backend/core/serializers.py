@@ -190,6 +190,54 @@ class HistoriqueStockSerializer(serializers.ModelSerializer):
         model = HistoriqueStock
         fields = '__all__'
 
+class DebtPaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DebtPayment
+        fields = ['id', 'amount', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+class DebtSerializer(serializers.ModelSerializer):
+    total_paid = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    amount_due = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    payments = DebtPaymentSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Debt
+        fields = [
+            'id',
+            'reference',
+            'machine_description',
+            'technician_name',
+            'reason',
+            'amount',
+            'status',
+            'expected_return_date',
+            'created_at',
+            'updated_at',
+            'total_paid',
+            'amount_due',
+            'payments',
+        ]
+        read_only_fields = ['id', 'status', 'created_at', 'updated_at', 'total_paid', 'amount_due', 'payments']
+
+    def validate_expected_return_date(self, value):
+        from django.utils import timezone
+
+        if value < timezone.now().date():
+            raise serializers.ValidationError("La date de retour prévue doit être aujourd'hui ou ultérieure.")
+        return value
+
+
+class DebtPaymentCreateSerializer(serializers.Serializer):
+    paid_amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+
+    def validate_paid_amount(self, value):
+        if value <= 0:
+            raise serializers.ValidationError('Le montant payé doit être supérieur à 0.')
+        return value
+
+
 class JournalSerializer(serializers.ModelSerializer):
     utilisateur_nom = serializers.SerializerMethodField()
     boutique_nom = serializers.SerializerMethodField()

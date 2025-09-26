@@ -1,272 +1,268 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import KpiCard from '@/components/KpiCard.vue';
-import { useNotification } from '../types/useNotification';
-import { useApi } from '../stores/useApi';
+import { computed, ref, watch } from 'vue'
+import { useFetch } from '#app'
+import { Line } from 'vue-chartjs'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js'
+import KpiCard from '@/components/KpiCard.vue'
+import { useNotification } from '@/types/useNotification'
 
-// --- Types ---
-interface Product {
-  id: number;
-  reference: string;
-  nomProduit: string;
-  category: string;
-  prix_achat: number;
-  prix: number;
-  description: string;
-  quantiteTotale: number;
-  statut: boolean;
-  boutique: number;
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler)
+
+type Period = 'month' | 'quarter' | 'year'
+
+interface MetricsTimeseriesEntry {
+  date: string
+  sales: number
+  debts: number
+  ca_global: number
 }
 
-interface Commande {
-  id: number;
-  facture: number;
-  nom: string;
-  prenom: string;
-  quantite: number;
-  telephone: string;
-  produit: Product;
-  prix_unitaire_fcfa: number;
-  total: number;
+interface MetricsTechnician {
+  technician_name: string
+  montant: number
 }
 
-
-interface FactureUI {
-  id: number;
-  type: string;
-  nom: string;
-  numero: string;
-  total: number;
-  verse: number;
-  reste: number;
-  status: string;
-  date: string;
+interface MetricsResponse {
+  period: Period
+  sales_encaissees: number
+  dettes_en_cours: number
+  ca_global: number
+  top_techniciens: MetricsTechnician[]
+  timeseries: MetricsTimeseriesEntry[]
 }
 
-// --- States ---
-const dateRange = ref('today');
-const startDate = ref('');
-const endDate = ref('');
-const debts = ref<Debt[]>([]);
-const factures = ref<FactureUI[]>([]);
-const loading = ref(true);
-const allFactures = ref<FactureUI[]>([]);
+const periodOptions: { label: string; value: Period }[] = [
+  { label: 'Ce mois', value: 'month' },
+  { label: 'Ce trimestre', value: 'quarter' },
+  { label: 'Cette année', value: 'year' },
+]
 
-// --- API Data ---
-const { data: produits } = await useApi<Product[]>('http://127.0.0.1:8000/api/produits/', { method: 'GET' });
-const { data: commandesClient } = await useApi<Commande[]>('http://127.0.0.1:8000/api/commandes-client/', { method: 'GET' });
-const { data: commandesPartenaires } = await useApi<Commande[]>('http://127.0.0.1:8000/api/commandes-partenaire/', { method: 'GET' });
+const selectedPeriod = ref<Period>('month')
+const lastUpdated = ref<Date | null>(null)
 
-// --- Computed ---
-const computerCount = computed(() =>
-  produits.value?.filter(p => p.category.toLowerCase() === 'ordinateur').length ?? 0
-);
+const query = computed(() => ({
+  period: selectedPeriod.value,
+  includeDebts: true,
+}))
 
-const phoneCount = computed(() =>
-  produits.value?.filter(p => p.category.toLowerCase() === 'telephone').length ?? 0
-);
+const { error: notifyError } = useNotification()
 
-const accessoryCount = computed(() => {
-  const accessoryCategories = ['accessoire', 'clavier', 'cleusb', 'souris'];
-  return produits.value?.filter(p =>
-    accessoryCategories.includes(p.category.toLowerCase())
-  ).length ?? 0;
-});
+const { data: metrics, pending, error, refresh } = await useFetch<MetricsResponse>('/api/metrics/', {
+  query,
+  watch: [selectedPeriod],
+  immediate: true,
+  onResponse({ response }) {
+    if (response.ok) {
+      lastUpdated.value = new Date()
+    }
+  },
+})
 
-const margeTotale = computed(() => {
-  const allCommandes = [
-    ...(commandesClient.value || []),
-    ...(commandesPartenaires.value || [])
-  ];
-  return allCommandes.reduce((sum, ligne) => {
-    const prixAchat = ligne.produit?.prix_achat ?? 0;
-    const prixVente = ligne.prix_unitaire_fcfa ?? 0;
-    const quantite = ligne.quantite ?? 0;
-    return sum + (prixVente - prixAchat) * quantite;
-  }, 0);
-});
-
-const totalDetteGlobale = computed(() =>
-  allFactures.value.reduce((sum, f) => sum + (f.reste), 0)
-);
-
-const chiffreAffaireTotal = computed(() => {
-  return allFactures.value.reduce((sum, f) => sum + f.total, 0);
-});
-
-const chiffreAffaireEncaisse = computed(() => {
-  return allFactures.value.reduce((sum, f) => sum + (f.total - f.reste), 0);
-});
-
-const chiffreAffaireDette = computed(() => {
-  return allFactures.value.reduce((sum, f) => sum + f.reste, 0);
-});
-
-// --- Méthodes utilitaires ---
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XAF' }).format(value);
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('fr-FR');
-}
-
-// --- Chargement des factures ---
-async function loadFacturesJour() {
-  try {
-    loading.value = true;
-    const today = new Date().toISOString().split('T')[0];
-    const { data, error: apiError } = await useApi<FactureUI[]>(`http://127.0.0.1:8000/api/factures/?created_at=${today}`, { method: 'GET' });
-    if (apiError.value) throw new Error(apiError.value);
-    factures.value = Array.isArray(data.value)
-      ? data.value.map(facture => {
-          const total = Number(facture.total) ?? 0;
-          const reste = facture.reste !== undefined ? Number(facture.reste) : 0;
-          const verse = total - reste;
-          return {
-            ...facture,
-            total,
-            verse,
-            reste,
-            date: facture.created_at ? formatDate(facture.created_at) : 'Date inconnue'
-          }
-        })
-      : [];
-  } catch (err) {
-    factures.value = [];
-  } finally {
-    loading.value = false;
+watch(error, (err) => {
+  if (err?.value) {
+    notifyError('Impossible de charger les indicateurs du tableau de bord.')
   }
+})
+
+const isInitialLoading = computed(() => pending.value && !metrics.value)
+
+const caGlobal = computed(() => metrics.value?.ca_global ?? 0)
+const ventesEncaissees = computed(() => metrics.value?.sales_encaissees ?? 0)
+const dettesEnCours = computed(() => metrics.value?.dettes_en_cours ?? 0)
+const topTechnicians = computed(() => metrics.value?.top_techniciens ?? [])
+const timeseries = computed(() => metrics.value?.timeseries ?? [])
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'currency',
+    currency: 'XAF',
+    maximumFractionDigits: 0,
+  }).format(amount ?? 0)
 }
 
-async function loadFacturesGlobal() {
-  try {
-    const { data, error: err } = await useApi<FactureUI[]>('http://127.0.0.1:8000/api/factures/', { method: 'GET' });
-    if (err.value) throw new Error(err.value);
-    allFactures.value = Array.isArray(data.value)
-      ? data.value.map(facture => {
-          const total = Number(facture.total) ?? 0;
-          const reste = facture.reste !== undefined ? Number(facture.reste) : 0;
-          const verse = total - reste;
-          return {
-            ...facture,
-            total,
-            verse,
-            reste,
-            date: facture.created_at ? formatDate(facture.created_at) : 'Date inconnue'
-          }
-        })
-      : [];
-  } catch (e) {
-    allFactures.value = [];
+const chartData = computed(() => {
+  const labels = timeseries.value.map((entry) =>
+    new Date(entry.date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })
+  )
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: 'CA global',
+        backgroundColor: 'rgba(59,130,246,0.15)',
+        borderColor: '#3B82F6',
+        fill: true,
+        data: timeseries.value.map((entry) => entry.ca_global),
+        tension: 0.35,
+      },
+      {
+        label: 'Ventes encaissées',
+        backgroundColor: 'rgba(16,185,129,0.15)',
+        borderColor: '#10B981',
+        fill: false,
+        data: timeseries.value.map((entry) => entry.sales),
+        tension: 0.35,
+      },
+      {
+        label: 'Dettes en cours',
+        backgroundColor: 'rgba(249,115,22,0.1)',
+        borderColor: '#F97316',
+        fill: false,
+        data: timeseries.value.map((entry) => entry.debts),
+        tension: 0.35,
+      },
+    ],
   }
-}
+})
 
-onMounted(() => {
-  loadFacturesJour();
-  loadFacturesGlobal();
-});
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  scales: {
+    y: {
+      ticks: {
+        callback(value: number | string) {
+          if (typeof value === 'string') {
+            return value
+          }
+          return new Intl.NumberFormat('fr-FR', {
+            style: 'currency',
+            currency: 'XAF',
+            maximumFractionDigits: 0,
+          }).format(Number(value))
+        },
+      },
+    },
+  },
+  plugins: {
+    legend: {
+      position: 'bottom' as const,
+    },
+    tooltip: {
+      callbacks: {
+        label(context: any) {
+          const value = context.parsed.y || 0
+          return `${context.dataset.label}: ${formatCurrency(value)}`
+        },
+      },
+    },
+  },
+}
 </script>
 
-<style scoped>
-/* Dashboard style amélioré */
-.kpi-card {
-  background: linear-gradient(135deg, #e0e7ff 0%, #f0fdfa 100%);
-  border-radius: 1.5rem;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.07);
-  padding: 2rem 1.5rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transition: box-shadow 0.2s;
-}
-.kpi-card:hover {
-  box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-}
-.kpi-title {
-  font-size: 1.1rem;
-  color: #2563eb;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-.kpi-value {
-  font-size: 2.2rem;
-  font-weight: bold;
-  color: #0f172a;
-}
-</style>
-
 <template>
-  <div class="p-6  min-h-screen">
-    <!-- En-tête -->
-    <div class="flex justify-between items-center mb-8">
-      <h1 class="text-xl md:text-3xl font-bold text-blue-400">Tableau de bord</h1>
-      <div class="flex space-x-2">
-        <select v-model="dateRange" class="px-3 py-2 border rounded-md text-sm">
-          <option value="today">Aujourd'hui</option>
-          <option value="week">Cette semaine</option>
-          <option value="month">Ce mois</option>
-          <option value="custom">Période personnalisée</option>
+  <div class="space-y-8 p-6">
+    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 class="text-2xl font-bold text-blue-500 md:text-3xl">Tableau de bord</h1>
+        <p class="text-sm text-gray-500">
+          Vision instantanée du chiffre d'affaires global et des dettes en cours.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center gap-3">
+        <select v-model="selectedPeriod" class="rounded-lg border px-3 py-2 text-sm shadow-sm">
+          <option v-for="option in periodOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
         </select>
-        <div v-if="dateRange === 'custom'" class="flex space-x-2">
-          <input type="date" v-model="startDate" class="px-3 py-2 border rounded-md text-sm">
-          <input type="date" v-model="endDate" class="px-3 py-2 border rounded-md text-sm">
-        </div>
+        <NuxtLink
+          to="/dettes"
+          class="inline-flex items-center rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white shadow hover:bg-blue-600"
+        >
+          Gérer les dettes
+        </NuxtLink>
+        <button
+          type="button"
+          class="inline-flex items-center rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-500 hover:bg-blue-50"
+          @click="refresh"
+        >
+          Actualiser
+        </button>
       </div>
     </div>
 
-    <!-- KPI Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-      <KpiCard class="kpi-card" title="Chiffre d'affaires encaissé" :value="formatCurrency(chiffreAffaireEncaisse)" icon="currency-euro" color="blue" />
-      <KpiCard class="kpi-card" title="Bénéfice" :value="formatCurrency(margeTotale)" icon="trending-up" color="green" />
-      <KpiCard class="kpi-card" title="Ordinateurs en Stock" :value="computerCount" icon="monitor" color="blue" />
-      <KpiCard class="kpi-card" title="Téléphones en Stock" :value="phoneCount" icon="device-mobile" color="blue" />
-      <KpiCard class="kpi-card" title="Accessoires" :value="accessoryCount" icon="shopping-bag" color="blue" />
-      <KpiCard class="kpi-card" title="Dettes totales" :value="formatCurrency(totalDetteGlobale)" icon="credit-card" color="red" colSpan="lg:col-span-2" />
+    <div v-if="isInitialLoading" class="rounded-xl bg-white p-8 text-center shadow-sm">
+      <p class="animate-pulse text-sm text-gray-500">Chargement des indicateurs...</p>
     </div>
 
-    <!-- Liste des factures -->
-    <div class="bg-white rounded-2xl shadow-md p-6 max-w-full overflow-x-auto">
-      <h2 class="text-xl md:text-3xl font-bold text-blue-400">Factures du jour</h2>
-      <div v-if="loading" class="text-center text-gray-500 animate-pulse">Chargement en cours...</div>
-      <table v-else class="min-w-[800px] w-full text-sm text-left text-gray-700">
-        <thead class="bg-gray-100 text-xs uppercase text-gray-600">
-          <tr>
-            <th class="px-4 py-3">Numéro</th>
-            <th class="px-4 py-3">Date</th>
-            <th class="px-4 py-3">Type</th>
-            <th class="px-4 py-3">Nom</th>
-            <th class="px-4 py-3">Total</th>
-            <th class="px-4 py-3">Versé</th>
-            <th class="px-4 py-3">Reste</th>
-            <th class="px-4 py-3">Statut</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-200 bg-white">
-          <tr v-for="facture in factures" :key="facture.id" class="hover:bg-gray-50 transition duration-150 ease-in-out">
-            <td class="px-4 py-3 font-medium text-gray-800">{{ facture.numero }}</td>
-            <td class="px-4 py-3">{{ facture.date }}</td>
-            <td class="px-4 py-3 capitalize">{{ facture.type }}</td>
-            <td class="px-4 py-3">{{ facture.nom }}</td>
-            <td class="px-4 py-3">{{ formatCurrency(facture.total) }}</td>
-            <td class="px-4 py-3">{{ formatCurrency(facture.verse) }}</td>
-            <td class="px-4 py-3">{{ formatCurrency(facture.reste) }}</td>
-            <td class="px-4 py-3">
-              <span :class="[
-                'inline-block px-3 py-1 text-xs font-semibold rounded-full',
-                facture.status === 'payé' 
-                  ? 'bg-green-100 text-green-700' 
-                  : 'bg-yellow-100 text-yellow-700'
-              ]">
-                {{ facture.status }}
-              </span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <div v-else class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+      <KpiCard class="dashboard-card" title="CA global" :value="formatCurrency(caGlobal)" icon="chart-bar" color="blue" />
+      <KpiCard
+        class="dashboard-card"
+        title="Ventes encaissées"
+        :value="formatCurrency(ventesEncaissees)"
+        icon="currency-euro"
+        color="green"
+      />
+      <KpiCard
+        class="dashboard-card"
+        title="Dettes en cours"
+        :value="formatCurrency(dettesEnCours)"
+        icon="credit-card"
+        color="orange"
+      />
+    </div>
+
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div class="dashboard-panel lg:col-span-2">
+        <div class="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-semibold text-slate-800">Tendance CA & dettes</h2>
+            <p class="text-xs text-gray-500">
+              Evolution quotidienne des ventes et dettes pour la période sélectionnée.
+            </p>
+          </div>
+          <div v-if="lastUpdated" class="text-xs text-gray-400">
+            Actualisé le {{ lastUpdated.toLocaleString('fr-FR') }}
+          </div>
+        </div>
+        <div class="h-80">
+          <Line v-if="timeseries.length" :data="chartData" :options="chartOptions" />
+          <div v-else class="flex h-full items-center justify-center rounded-lg bg-slate-50 text-sm text-gray-500">
+            Aucune donnée disponible pour la période sélectionnée.
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-panel">
+        <h2 class="mb-4 text-lg font-semibold text-slate-800">Top techniciens débiteurs</h2>
+        <ul class="space-y-3">
+          <li
+            v-for="technician in topTechnicians"
+            :key="technician.technician_name"
+            class="flex items-center justify-between rounded-lg border border-slate-100 px-4 py-3"
+          >
+            <div>
+              <p class="font-medium text-slate-700">{{ technician.technician_name }}</p>
+              <p class="text-xs text-gray-500">Montant dû</p>
+            </div>
+            <span class="text-sm font-semibold text-blue-500">{{ formatCurrency(technician.montant) }}</span>
+          </li>
+          <li v-if="!topTechnicians.length" class="text-sm text-gray-500">
+            Aucun technicien en retard de paiement 🎉
+          </li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
-  
-  
+
+<style scoped>
+.dashboard-card {
+  @apply rounded-xl bg-white shadow-sm ring-1 ring-slate-100;
+}
+
+.dashboard-panel {
+  @apply rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-100;
+}
+</style>

@@ -3,6 +3,11 @@ import type { Produit } from "@/types"
 export const NAVIGATION_ITEMS = [
   [
     {
+      name: "Dettes",
+      link: "/dettes",
+      icon: "i-heroicons-credit-card",
+    },
+    {
       name: "Stock des Produits",
       link: "/stock_produit",
       icon: "i-heroicons-square-2-stack",
@@ -45,6 +50,11 @@ export const NAVIGATION_ITEMS = [
 
 export const NAVIGATION_ITEMS_ADMIN = [
   [
+    {
+      name: "Dettes",
+      link: "/dettes",
+      icon: "i-heroicons-credit-card",
+    },
     {
       name: "Produits",
       link: "/produits",
@@ -105,6 +115,11 @@ export const NAVIGATION_ITEMS_SUPERADMIN = [
       name: "Dashboard",
       link: "/",
       icon: "i-heroicons-rectangle-group",
+    },
+    {
+      name: "Dettes",
+      link: "/dettes",
+      icon: "i-heroicons-credit-card",
     },
     {
       name: "Produits",
