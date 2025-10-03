@@ -11,7 +11,8 @@ function handleLogout() {
   <template>
     <div
       class="hidden z-10 md:block fixed w-[250px] h-full py-5 px-2 border-r dark:border-r-gray-600 border-r-gray-200 
-      overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-gray-400 hover:scrollbar-thumb-gray-500 "
+      overflow-y-auto scrollbar-thin scrollbar-track-gray-200 scrollbar-thumb-blue-400 hover:scrollbar-thumb-blue-500"
+      style="scrollbar-width: thin; scrollbar-color: #60a5fa #e5e7eb;"
     >
       <div class="flex items-center justify-center">
         <NuxtLink href="/" class="text-lg md:text-2xl font-extrabold pb-3"
@@ -38,4 +39,3 @@ function handleLogout() {
       </div>
     </div>
   </template>
-  

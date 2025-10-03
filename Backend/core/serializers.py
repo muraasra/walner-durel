@@ -92,6 +92,10 @@ class FactureSerializer(serializers.ModelSerializer):
     class Meta:
         model = Facture
         fields = '__all__'
+        extra_kwargs = {
+            'garantie': {'required': False},
+            'contrat_confidentialite': {'required': False}
+        }
 
 class CommandeClientSerializer(serializers.ModelSerializer):
     total = serializers.ReadOnlyField()

@@ -54,14 +54,13 @@ export const useAuthStore = defineStore('auth', () => {
     navigateTo('/login')
   }
 
-  // restauration automatique si client
+  // Force la suppression du token et de l'utilisateur à chaque chargement
   if (process.client) {
-    const storedToken = localStorage.getItem('access_token')
-    if (storedToken) {
-      token.value = storedToken
-      cookieToken.value = storedToken
-    }
-    restoreUser()
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user');
+    token.value = null;
+    cookieToken.value = null;
+    user.value = null;
   }
 
   return { user, token, baseUrl, setToken, setUser, logout }

@@ -2,7 +2,7 @@ from decimal import Decimal
 from datetime import datetime
 
 import django_filters
-from django.db.models import DecimalField, ExpressionWrapper, F, Q, Sum, Value
+from django.db.models import DecimalField, FloatField, ExpressionWrapper, F, Q, Sum, Value, OuterRef, Subquery
 from django.db.models.functions import Coalesce, TruncDate
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -311,25 +311,51 @@ class DashboardMetricsView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        
+        
+        
+        
         now = timezone.now()
         start_date = self._get_period_start(period, now)
 
-        sales_total = self._sum_sales(start_date)
-        outstanding_debts = self._sum_outstanding_debts(include_debts)
+        ca_global = self._sum_factures(start_date)
+        sales_encaissees = self._sum_versements(start_date)
+        dettes_en_cours = self._sum_outstanding_debts(start_date)
 
-        ca_global = sales_total + (outstanding_debts if include_debts else Decimal('0.00'))
         timeseries = self._build_timeseries(start_date, include_debts)
         top_technicians = self._top_technicians()
 
         response = {
             'period': period,
-            'sales_encaissees': float(sales_total),
-            'dettes_en_cours': float(outstanding_debts),
-            'ca_global': float(ca_global),
-            'top_techniciens': top_techniciens,
+            'sales_encaissees': float(sales_encaissees),
+            'dettes_en_cours': float(dettes_en_cours),
+            'ca_global': float(ca_global + (dettes_en_cours if include_debts else Decimal('0.00'))),
+            'top_techniciens': top_technicians,
             'timeseries': timeseries,
         }
         return Response(response)
+
+    def _sum_factures(self, start_date=None) -> Decimal:
+        qs = Facture.objects.all()
+        if start_date:
+            qs = qs.filter(created_at__gte=start_date)
+        agg = qs.aggregate(total=Coalesce(
+            Sum('total', output_field=DecimalField(max_digits=12, decimal_places=2)),
+            Value(Decimal('0.00')),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        ))
+        return agg.get('total') or Decimal('0.00')
+
+    def _sum_versements(self, start_date=None) -> Decimal:
+        qs = Versement.objects.all()
+        if start_date:
+            qs = qs.filter(date_versement__gte=start_date)
+        agg = qs.aggregate(total=Coalesce(
+            Sum('montant', output_field=DecimalField(max_digits=12, decimal_places=2)),
+            Value(Decimal('0.00')),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        ))
+        return agg.get('total') or Decimal('0.00')
 
     def _get_period_start(self, period: str, now: datetime) -> datetime:
         if period == 'year':
@@ -341,80 +367,155 @@ class DashboardMetricsView(APIView):
         return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
     def _sum_sales(self, start_date: datetime) -> Decimal:
-        total = (
-            Versement.objects.filter(date_versement__gte=start_date)
-            .aggregate(total=Coalesce(Sum('montant'), Decimal('0.00')))
-            .get('total', Decimal('0.00'))
+        agg = (
+            Versement.objects
+            .filter(date_versement__gte=start_date)
+            .aggregate(total=Coalesce(
+                Sum('montant', output_field=FloatField()),
+                Value(0.0),
+                output_field=FloatField(),
+            ))
         )
-        return Decimal(total or Decimal('0.00'))
+        total = agg.get('total') or 0.0
+        return Decimal(str(total))
 
-    def _sum_outstanding_debts(self, include_debts: bool) -> Decimal:
-        if not include_debts:
-            return Decimal('0.00')
 
-        total = (
-            Debt.objects.with_financials()
-            .filter(status__in=[Debt.STATUS_PENDING, Debt.STATUS_PARTIALLY_PAID])
-            .aggregate(total=Coalesce(Sum('calculated_amount_due'), Decimal('0.00')))
-            .get('total', Decimal('0.00'))
+
+    def _sum_outstanding_debts(self, start_date=None) -> Decimal:
+        payments_total_sq = (
+            DebtPayment.objects
+            .filter(debt_id=OuterRef('pk'))
+            .values('debt_id')
+            .annotate(total=Coalesce(
+                Sum('amount', output_field=DecimalField(max_digits=12, decimal_places=2)),
+                Value(Decimal('0.00')),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            ))
+            .values('total')[:1]
         )
-        return Decimal(total or Decimal('0.00'))
+
+        qs = Debt.objects.all()
+        if start_date:
+            qs = qs.filter(created_at__gte=start_date)
+
+        qs = qs.annotate(
+            paid_total=Coalesce(Subquery(payments_total_sq), Value(Decimal('0.00')),
+            output_field=DecimalField(max_digits=12, decimal_places=2)),
+        ).annotate(
+            amount_due=ExpressionWrapper(F('amount') - F('paid_total'),
+            output_field=DecimalField(max_digits=12, decimal_places=2)),
+        ).filter(amount_due__gt=0)
+
+        agg = qs.aggregate(total_due=Coalesce(
+            Sum('amount_due', output_field=DecimalField(max_digits=12, decimal_places=2)),
+            Value(Decimal('0.00')),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        ))
+        return agg.get('total_due') or Decimal('0.00')
+
+
 
     def _build_timeseries(self, start_date: datetime, include_debts: bool):
         sales_by_day = (
-            Versement.objects.filter(date_versement__gte=start_date)
+            Versement.objects
+            .filter(date_versement__gte=start_date)
             .annotate(day=TruncDate('date_versement'))
             .values('day')
-            .annotate(total=Coalesce(Sum('montant'), Decimal('0.00')))
+            .annotate(total=Coalesce(
+                Sum('montant', output_field=FloatField()),
+                Value(0.0),
+                output_field=FloatField(),
+            ))
         )
 
         debts_by_day = (
-            Debt.objects.filter(created_at__gte=start_date)
+            Debt.objects
+            .filter(created_at__gte=start_date)
             .annotate(day=TruncDate('created_at'))
             .values('day')
-            .annotate(total=Coalesce(Sum('amount'), Decimal('0.00')))
+            .annotate(total=Coalesce(
+                Sum('amount', output_field=DecimalField(max_digits=12, decimal_places=2)),
+                Value(Decimal('0.00')),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            ))
         )
 
-        series_map = {}
+        series_map: dict = {}
         for entry in sales_by_day:
             day = entry['day']
             series_map.setdefault(day, {'sales': Decimal('0.00'), 'debts': Decimal('0.00')})
-            series_map[day]['sales'] = Decimal(entry['total'])
+            series_map[day]['sales'] = Decimal(str(entry['total']))
 
         for entry in debts_by_day:
             day = entry['day']
             series_map.setdefault(day, {'sales': Decimal('0.00'), 'debts': Decimal('0.00')})
-            series_map[day]['debts'] = Decimal(entry['total'])
+            series_map[day]['debts'] = Decimal(str(entry['total']))
 
         timeseries = []
         for day in sorted(series_map.keys()):
             sales_value = series_map[day]['sales']
             debts_value = series_map[day]['debts'] if include_debts else Decimal('0.00')
-            timeseries.append(
-                {
-                    'date': day.isoformat(),
-                    'sales': float(sales_value),
-                    'debts': float(series_map[day]['debts']),
-                    'ca_global': float(sales_value + debts_value),
-                }
-            )
+            timeseries.append({
+                'date': day.isoformat(),
+                'sales': float(sales_value),
+                'debts': float(series_map[day]['debts']),
+                'ca_global': float(sales_value + debts_value),
+            })
         return timeseries
 
-    def _top_technicians(self):
-        technicians = (
-            Debt.objects.with_financials()
-            .filter(status__in=[Debt.STATUS_PENDING, Debt.STATUS_PARTIALLY_PAID])
-            .values('technician_name')
-            .annotate(montant=Coalesce(Sum('calculated_amount_due'), Decimal('0.00')))
-            .order_by('-montant')[:5]
+
+
+    def _top_technicians(self, start_date=None, limit=5):
+        # Sous-requête: total payé pour chaque dette
+        payments_total_sq = (
+            DebtPayment.objects  # <-- ton modèle de paiement de dettes
+            .filter(debt_id=OuterRef('pk'))
+            .values('debt_id')
+            .annotate(total=Coalesce(
+                Sum('amount', output_field=DecimalField(max_digits=12, decimal_places=2)),
+                Value(Decimal('0.00')),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            ))
+            .values('total')[:1]
         )
+
+        # Base: dettes (tu peux filtrer ici selon ton besoin: non payées, non clôturées, etc.)
+        base = Debt.objects.all()
+        if start_date:
+            base = base.filter(created_at__gte=start_date)
+
+        # Montant payé par dette (via Subquery), puis reste à payer par dette
+        base = base.annotate(
+            paid_total=Coalesce(
+                Subquery(payments_total_sq),
+                Value(Decimal('0.00')),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        ).annotate(
+            amount_due=ExpressionWrapper(
+                F('amount') - F('paid_total'),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        ).filter(amount_due__gt=0)
+
+        # Agrégation finale par technicien
+        qs = (
+            base.values('technician_name')
+            .annotate(montant=Coalesce(
+                Sum('amount_due', output_field=DecimalField(max_digits=12, decimal_places=2)),
+                Value(Decimal('0.00')),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            ))
+            .filter(montant__gt=0)
+            .order_by('-montant')[:limit]
+        )
+
+        # Réponse au format attendu par le front
         return [
-            {
-                'technician_name': tech['technician_name'],
-                'montant': float(tech['montant']),
-            }
-            for tech in technicians
+            {'technician_name': row['technician_name'], 'montant': float(row['montant'])}
+            for row in qs
         ]
+
 
 
 

@@ -1,39 +1,60 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import { useAuthStore } from '@/stores/auth';
-import { useNotification } from '~/types/useNotification';
+import { ref, onMounted, watch, computed } from 'vue'
+import { useAuthStore } from '@/stores/auth'
+import { useNotification } from '~/types/useNotification'
+import { useApi } from '@/stores/useApi'
 
-const auth = useAuthStore();
-const { error } = useNotification();
+// ✅ Récupère la base API (fallback local si non configuré)
+const { public: { apiBase: cfgBase } } = useRuntimeConfig()
+const API_BASE = (cfgBase && String(cfgBase).replace(/\/+$/,'')) || 'http://127.0.0.1:8000/api'
+
+const auth = useAuthStore()
+const { errors } = useNotification()
 
 interface JournalEntry {
-  id: number;
-  utilisateur: number;
-  utilisateur_nom: string;
-  boutique: number;
-  boutique_nom: string;
-  type_operation: string;
-  description: string;
-  details: any;
-  date_operation: string;
-  ip_address: string;
+  id: number
+  utilisateur: number
+  utilisateur_nom: string
+  boutique: number
+  boutique_nom: string
+  type_operation: string
+  description: string
+  details: any
+  date_operation: string
+  ip_address: string
 }
 
-const journalEntries = ref<JournalEntry[]>([]);
-const loading = ref(false);
-const totalItems = ref(0);
-const currentPage = ref(1);
-const itemsPerPage = ref(10);
+interface JournalApiResponse {
+  results: JournalEntry[]
+  count: number
+  [key: string]: any
+}
+
+type Boutique = { id: number; nom?: string; name?: string }
+type UserApi = {
+  id: number
+  username?: string
+  email?: string
+  nom?: string; prenom?: string
+  first_name?: string; last_name?: string
+}
+
+const journalEntries = ref<JournalEntry[]>([])
+const loading = ref(false)
+const totalItems = ref(0)
+const currentPage = ref(1)
+const itemsPerPage = ref(10)
 
 // Filtres
-const selectedBoutique = ref('');
-const selectedTypeOperation = ref('');
-const selectedUtilisateur = ref('');
-const dateDebut = ref('');
-const dateFin = ref('');
+const selectedBoutique = ref<string | number>('')
+const selectedTypeOperation = ref('')
+const selectedUtilisateur = ref<string | number>('')
+const dateDebut = ref('')
+const dateFin = ref('')
 
-const boutiques = ref([]);
-const utilisateurs = ref([]);
+const boutiques = ref<Boutique[]>([])
+const utilisateurs = ref<UserApi[]>([])
+
 const typesOperation = [
   { value: 'creation', label: 'Création' },
   { value: 'modification', label: 'Modification' },
@@ -43,114 +64,124 @@ const typesOperation = [
   { value: 'vente', label: 'Vente' },
   { value: 'achat', label: 'Achat' },
   { value: 'retour', label: 'Retour' },
-];
+]
 
-function getTypeOperationColor(type: string): string {
-  const colors = {
-    creation: 'green',
-    modification: 'blue',
-    suppression: 'red',
-    connexion: 'purple',
-    deconnexion: 'gray',
-    vente: 'green',
-    achat: 'blue',
-    retour: 'orange',
-  };
-  return colors[type] || 'gray';
+function getTypeOperationColor(type: string): 'primary' | 'success' | 'warning' | 'errors' | 'info' | 'default' | undefined {
+  const colors: Record<string, 'primary' | 'success' | 'warning' | 'errors' | 'info' | 'default'> = {
+    creation: 'success',
+    modification: 'info',
+    suppression: 'errors',
+    connexion: 'primary',
+    deconnexion: 'default',
+    vente: 'success',
+    achat: 'info',
+    retour: 'warning',
+  }
+  return colors[type] || 'default'
 }
 
+// Options pour les selects (visuel inchangé)
+const boutiqueOptions = computed(() =>
+  boutiques.value.map(b => ({
+    value: b.id,
+    label: b.nom ?? b.name ?? `#${b.id}`,
+  }))
+)
+
+const userOptions = computed(() =>
+  utilisateurs.value.map(u => {
+    const first = u.prenom ?? u.first_name ?? ''
+    const last  = u.nom ?? u.last_name ?? ''
+    const label = (first || last) ? `${first} ${last}`.trim() : (u.username ?? `#${u.id}`)
+    return { value: u.id, label }
+  })
+)
+
 const fetchJournal = async () => {
+  loading.value = true
   try {
-    loading.value = true;
-    const params = new URLSearchParams({
-      page: currentPage.value.toString(),
-      page_size: itemsPerPage.value.toString(),
-    });
-
-    if (selectedBoutique.value) params.append('boutique', selectedBoutique.value);
-    if (selectedTypeOperation.value) params.append('type_operation', selectedTypeOperation.value);
-    if (selectedUtilisateur.value) params.append('utilisateur', selectedUtilisateur.value);
-    if (dateDebut.value) params.append('date_debut', dateDebut.value);
-    if (dateFin.value) params.append('date_fin', dateFin.value);
-
-    const response = await fetch(`${auth.baseUrl}/api/journaux/?${params.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Erreur lors de la récupération du journal');
+    const params: Record<string, any> = {
+      page: currentPage.value,
+      page_size: itemsPerPage.value,
+      _ts: Date.now(),
     }
+    if (selectedBoutique.value) params.boutique = selectedBoutique.value
+    if (selectedTypeOperation.value) params.type_operation = selectedTypeOperation.value
+    if (selectedUtilisateur.value) params.utilisateur = selectedUtilisateur.value
+    if (dateDebut.value) params.date_debut = dateDebut.value
+    if (dateFin.value) params.date_fin = dateFin.value
 
-    const data = await response.json();
-    journalEntries.value = data.results || [];
-    totalItems.value = data.count || 0;
+    const query = Object.entries(params)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
+      .join('&')
+
+    const { data, error: apiError } = await useApi(`${API_BASE}/journaux/?${query}`, {
+      method: 'GET',
+      server: false,
+    })
+    if (apiError.value) throw new Error((apiError.value as any)?.detail || 'Erreur API journal')
+
+    const res = data.value as any
+    journalEntries.value = Array.isArray(res) ? res : (res?.results ?? [])
+    totalItems.value     = Array.isArray(res) ? res.length : (res?.count ?? 0)
   } catch (err) {
-    console.error('Erreur:', err);
-    error('Erreur lors de la récupération du journal');
+    console.error('Erreur:', err)
+    errors('Erreur lors de la récupération du journal')
   } finally {
-    loading.value = false;
+    loading.value = false
   }
-};
+}
 
 const fetchBoutiques = async () => {
   try {
-    const response = await fetch(`${auth.baseUrl}/api/boutiques/`, {
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-      },
-    });
-    if (!response.ok) throw new Error('Erreur lors de la récupération des boutiques');
-    const data = await response.json();
-    boutiques.value = data.results || data;
+    const { data, error: apiError } = await useApi(`${API_BASE}/boutiques/`, { method: 'GET', server: false })
+    if (apiError.value) throw new Error('Erreur API boutiques')
+    const v = data.value as any
+    boutiques.value = Array.isArray(v) ? v : (v?.results ?? [])
   } catch (err) {
-    console.error('Erreur:', err);
-    error('Erreur lors de la récupération des boutiques');
+    console.error('Erreur:', err)
+    errors('Erreur lors de la récupération des boutiques')
   }
-};
+}
 
 const fetchUtilisateurs = async () => {
   try {
-    const response = await fetch(`${auth.baseUrl}/api/users/`, {
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-      },
-    });
-    if (!response.ok) throw new Error('Erreur lors de la récupération des utilisateurs');
-    const data = await response.json();
-    utilisateurs.value = data.results || data;
+    // essai 1
+    let { data, error: apiError } = await useApi(`${API_BASE}/users/`, { method: 'GET', server: false })
+    // fallback
+    if (apiError.value) {
+      ;({ data, error: apiError } = await useApi(`${API_BASE}/utilisateurs/`, { method: 'GET', server: false }))
+    }
+    if (apiError.value) throw new Error('Erreur API utilisateurs')
+    const v = data.value as any
+    utilisateurs.value = Array.isArray(v) ? v : (v?.results ?? [])
   } catch (err) {
-    console.error('Erreur:', err);
-    error('Erreur lors de la récupération des utilisateurs');
+    console.error('Erreur:', err)
+    errors('Erreur lors de la récupération des utilisateurs')
   }
-};
+}
 
 const resetFilters = () => {
-  selectedBoutique.value = '';
-  selectedTypeOperation.value = '';
-  selectedUtilisateur.value = '';
-  dateDebut.value = '';
-  dateFin.value = '';
-  currentPage.value = 1;
-  fetchJournal();
-};
+  selectedBoutique.value = ''
+  selectedTypeOperation.value = ''
+  selectedUtilisateur.value = ''
+  dateDebut.value = ''
+  dateFin.value = ''
+  currentPage.value = 1
+  fetchJournal()
+}
 
 onMounted(() => {
-  fetchJournal();
-  fetchBoutiques();
-  fetchUtilisateurs();
-});
+  fetchBoutiques()
+  fetchUtilisateurs()
+  fetchJournal()
+})
 
-watch([currentPage, itemsPerPage], () => {
-  fetchJournal();
-});
-
+watch([currentPage, itemsPerPage], fetchJournal)
 watch([selectedBoutique, selectedTypeOperation, selectedUtilisateur, dateDebut, dateFin], () => {
-  currentPage.value = 1;
-  fetchJournal();
-});
+  currentPage.value = 1
+  fetchJournal()
+})
 </script>
 
 <template>
@@ -164,7 +195,7 @@ watch([selectedBoutique, selectedTypeOperation, selectedUtilisateur, dateDebut, 
         <UFormGroup label="Boutique">
           <USelect
             v-model="selectedBoutique"
-            :options="boutiques.map(b => ({ value: b.id, label: b.nom }))"
+            :options="boutiqueOptions"
             placeholder="Sélectionner une boutique"
           />
         </UFormGroup>
@@ -180,7 +211,7 @@ watch([selectedBoutique, selectedTypeOperation, selectedUtilisateur, dateDebut, 
         <UFormGroup label="Utilisateur">
           <USelect
             v-model="selectedUtilisateur"
-            :options="utilisateurs.map(u => ({ value: u.id, label: `${u.first_name} ${u.last_name}` }))"
+            :options="userOptions"
             placeholder="Sélectionner un utilisateur"
           />
         </UFormGroup>
@@ -217,7 +248,7 @@ watch([selectedBoutique, selectedTypeOperation, selectedUtilisateur, dateDebut, 
           {{ new Date(row.date_operation).toLocaleString() }}
         </template>
         <template #type_operation-data="{ row }">
-          <UBadge :color="getTypeOperationColor(row.type_operation)">
+          <UBadge :colors="getTypeOperationColor(row.type_operation)">
             {{ row.type_operation }}
           </UBadge>
         </template>
@@ -228,7 +259,7 @@ watch([selectedBoutique, selectedTypeOperation, selectedUtilisateur, dateDebut, 
         <UPagination
           v-model="currentPage"
           :total="totalItems"
-          :page-count="Math.ceil(totalItems / itemsPerPage)"
+          :page-size="itemsPerPage"
         />
         <USelect
           v-model="itemsPerPage"
@@ -241,4 +272,4 @@ watch([selectedBoutique, selectedTypeOperation, selectedUtilisateur, dateDebut, 
       </div>
     </div>
   </div>
-</template> 
+</template>

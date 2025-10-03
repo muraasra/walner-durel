@@ -16,7 +16,7 @@
     "autotable": "^1.0.0",
     "chart.js": "^4.4.6",
     "date-fns": "^4.1.0",
-    "jspdf": "^3.0.1",
+    "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
     "nuxt": "^3.14.159",
     "nuxt-icon": "^1.0.0-beta.7",

@@ -80,14 +80,27 @@ watch([q, plageDatesSelectionnee], () => {
     </div>
   </div>
 
-  <div class="shadow-lg border rounded-md dark:border-gray-600 dark:shadow-gray-800 mt-3">
-    <UTable :rows="facturesFiltrees" :columns="columns">
-      <template #numero-data="{ row }">{{ row.numero }}</template>
-      <template #date-data="{ row }">
-        {{ new Date(row.date).toLocaleString('fr-FR', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'}).replace(',', '') }}
+  <div class="shadow border rounded-xl bg-white mt-3">
+    <UTable
+      :rows="facturesFiltrees"
+      :columns="columns"
+      class="min-w-full text-sm border-separate border-spacing-0"
+      :thead-class="'bg-gray-50 text-base font-semibold text-gray-700'"
+      :tbody-class="''"
+  :row-class="(row: any, rowIndex: number) => rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50 hover:bg-gray-100 transition'"
+    >
+      <template #numero-data="{ row }">
+        <span class="font-medium text-gray-800">{{ row.numero }}</span>
       </template>
-      <template #type-data="{ row }">{{ row.type }}</template>
-      <template #nom-data="{ row }">{{ row.nom }}</template>
+      <template #date-data="{ row }">
+        <span class="text-gray-700">{{ new Date(row.date).toLocaleString('fr-FR', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'}).replace(',', '') }}</span>
+      </template>
+      <template #type-data="{ row }">
+        <span class="text-gray-700">{{ row.type }}</span>
+      </template>
+      <template #nom-data="{ row }">
+        <span class="text-gray-700">{{ row.nom }}</span>
+      </template>
       <template #status-data="{ row }">
         <span
           :class="[
@@ -100,25 +113,32 @@ watch([q, plageDatesSelectionnee], () => {
           {{ row.status }}
         </span>
       </template>
-      <template #total-data="{ row }">{{ row.total }} FCFA</template>
-      <template #verse-data="{ row }">{{ row.verse }} FCFA</template>
-      <template #reste-data="{ row }">{{ row.reste }} FCFA</template>
+      <template #total-data="{ row }">
+        <span class="font-semibold text-gray-900">{{ row.total }} FCFA</span>
+      </template>
+      <template #verse-data="{ row }">
+        <span class="font-semibold text-green-700">{{ row.verse }} FCFA</span>
+      </template>
+      <template #reste-data="{ row }">
+        <span :class="row.reste > 0 ? 'font-semibold text-orange-600' : 'font-semibold text-green-600'">{{ row.reste }} FCFA</span>
+      </template>
       <template #action-data="{ row }">
         <UButton
           v-if="row.reste > 0 && row.status !== 'payé'"
           color="blue"
+          variant="outline"
+          size="sm"
           class="mr-2"
           @click="$emit('versement', row)"
         >
-        Versement
+          Versement
         </UButton>
-        <UButton color="green" @click="$emit('voir', row)">voir</UButton>
+        <UButton color="green" variant="outline" size="sm" @click="$emit('voir', row)">Voir</UButton>
       </template>
     </UTable>
 
-    <div class="flex justify-end px-3 py-3.5 border-t border-gray-200 dark:border-gray-700">
+    <div class="flex justify-end px-3 py-3.5 border-t border-gray-200">
       <UPagination v-model="page" :page-count="pageCount" :total="totalFactures" />
     </div>
-    
   </div>
 </template>

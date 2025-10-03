@@ -6,7 +6,7 @@ from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
 
 
-# --- Types d'opérations du journal ---
+# --- Journal: types d'opérations ---
 OPERATION_TYPES = (
     ("CREATION", "Création"),
     ("MODIFICATION", "Modification"),
@@ -38,9 +38,18 @@ class DebtQuerySet(models.QuerySet):
         )
 
 
+# ---------------------------
+# Entités métier principales
+# ---------------------------
+
 class Boutique(models.Model):
     ville = models.CharField(max_length=100)
     nom = models.CharField(max_length=100)
+
+    class Meta:
+        verbose_name = "Boutique"
+        verbose_name_plural = "Boutiques"
+        ordering = ["nom"]
 
     def __str__(self):
         return self.nom
@@ -55,27 +64,33 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLES)
     boutique = models.ForeignKey(Boutique, on_delete=models.SET_NULL, null=True, blank=True)
 
+    class Meta:
+        verbose_name = "Utilisateur"
+        verbose_name_plural = "Utilisateurs"
+
     def __str__(self):
         return f"{self.username} ({self.role})"
 
 
 class Produit(models.Model):
-    choice = (
-        ('ordinateur', 'Ordinateur'),
-        ('accessoire', 'Accessoire'),
-        ('ecran', 'Ecran'),
-        ('imprimante', 'Imprimante'),
-        ('tablette', 'Tablette'),
-        ('casque', 'Casque'),
-        ('clavier', 'Clavier'),
-        ('souris', 'Souris'),
-        ('modem', 'Modem'),
-        ('disquedur', 'Disque dur'),
-        ('cleusb', 'Cle USB'),
-        ('autre', 'Autre'),
+    CATEGORY_CHOICES = (
+        ("ordinateur", "Ordinateur"),
+        ("telephone", "Téléphone"),
+        ("accessoire", "Accessoire"),
+        ("ecran", "Ecran"),
+        ("imprimante", "Imprimante"),
+        ("tablette", "Tablette"),
+        ("casque", "Casque"),
+        ("clavier", "Clavier"),
+        ("souris", "Souris"),
+        ("modem", "Modem"),
+        ("disquedur", "Disque dur"),
+        ("cleusb", "Clé USB"),
+        ("autre", "Autre"),
     )
+
     reference = models.CharField(max_length=100, blank=True)
-    category = models.CharField(max_length=20, choices=choice, default='ordinateur')
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default="ordinateur")
     nom = models.CharField(max_length=100)
     description = models.TextField(blank=True)
     quantite = models.IntegerField(default=0)
@@ -86,7 +101,7 @@ class Produit(models.Model):
     created_at = models.DateTimeField(null=True, blank=True)
     updated_at = models.DateTimeField(null=True, blank=True)
 
-    # Champs spécifiques aux ordinateurs
+    # Champs spécifiques (ex. ordinateurs)
     marque = models.CharField(max_length=100, blank=True, null=True, default=None)
     modele = models.CharField(max_length=100, blank=True, null=True, default=None)
     processeur = models.CharField(max_length=100, blank=True, null=True, default=None)
@@ -95,99 +110,170 @@ class Produit(models.Model):
     systeme_exploitation = models.CharField(max_length=100, blank=True, null=True, default=None)
     annee = models.IntegerField(blank=True, null=True, default=None)
 
+    class Meta:
+        verbose_name = "Produit"
+        verbose_name_plural = "Produits"
+        ordering = ["-created_at"]
+
     def save(self, *args, **kwargs):
+        # Garde ton mode manuel pour created/updated
         if not self.created_at:
             self.created_at = timezone.now()
         self.updated_at = timezone.now()
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.nom} ({self.reference})"
-
-    class Meta:
-        ordering = ['-created_at']
+        return f"{self.nom} ({self.reference})" if self.reference else self.nom
 
 
 class PrixProduit(models.Model):
-    produit = models.OneToOneField(Produit, on_delete=models.CASCADE)
+    produit = models.OneToOneField(Produit, on_delete=models.CASCADE, related_name="prix_detail")
     prix_achat_yen = models.FloatField()
     prix_vente_yen = models.FloatField()
     taux_fcfa = models.FloatField(default=1)
     date = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = "Prix produit"
+        verbose_name_plural = "Prix produits"
+        ordering = ["-date"]
+
     def prix_vente_fcfa(self):
         return self.prix_vente_yen * self.taux_fcfa
 
+    def __str__(self):
+        return f"Prix {self.produit} ({self.prix_vente_yen}¥)"
+
+
 class Partenaire(models.Model):
-    choiceStatut = (
-        ('encours','En Cours'),
-        ('paye','Payé'),
+    STATUT_CHOICES = (
+        ("encours", "En cours"),
+        ("paye", "Payé"),
     )
-    
+
     nom = models.CharField(max_length=100)
-    prenom =  models.CharField(max_length=100, default='')
-    telephone = models.CharField(max_length=20,default=0)
-    statut = models.CharField(max_length=20, choices=choiceStatut,default='encours')
+    prenom = models.CharField(max_length=100, default="", blank=True)
+    telephone = models.CharField(max_length=20, default="", blank=True)
+    statut = models.CharField(max_length=20, choices=STATUT_CHOICES, default="encours")
+    # NOTE: tu avais 'boutique = BooleanField' ; si c'est une vraie boutique, préfère une FK :
+    # boutique = models.ForeignKey(Boutique, on_delete=models.SET_NULL, null=True, blank=True)
     boutique = models.BooleanField(default=True)
-    localisation = models.CharField(max_length=100, default='Bafoussam')
-    dateadhesion = models.DateTimeField(default=now)
+    localisation = models.CharField(max_length=100, default="Bafoussam", blank=True)
+    dateadhesion = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "Partenaire"
+        verbose_name_plural = "Partenaires"
+        ordering = ["-dateadhesion", "nom"]
+
+    def __str__(self):
+        return f"{self.prenom} {self.nom}".strip()
+
 
 class Facture(models.Model):
     TYPES = (
-        ('client', 'Client'),
-        ('partenaire', 'Partenaire'),
+        ("client", "Client"),
+        ("partenaire", "Partenaire"),
     )
+
     type = models.CharField(max_length=20, choices=TYPES)
-    nom = models.CharField(max_length=20, default='',blank=True)
-    numero = models.CharField(max_length=20, default='',blank=True)
+    nom = models.CharField(max_length=100, default="", blank=True)
+    numero = models.CharField(max_length=50, default="", blank=True)
     total = models.FloatField()
     reste = models.FloatField()
-    
-    status = models.CharField(max_length=20, default='En attente')
+    status = models.CharField(max_length=20, default="En attente")
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     boutique = models.ForeignKey(Boutique, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    garantie = models.PositiveIntegerField(default=1, validators=[MinValueValidator(1)], help_text="Garantie en mois (1-10)")
+    contrat_confidentialite = models.BooleanField(default=False, help_text="Contrat de confidentialité inclus")
+
+    class Meta:
+        verbose_name = "Facture"
+        verbose_name_plural = "Factures"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Facture #{self.id} ({self.type})"
+
 
 class CommandeClient(models.Model):
-    facture = models.ForeignKey(Facture, on_delete=models.CASCADE)
+    facture = models.ForeignKey(Facture, on_delete=models.CASCADE, related_name="commandes_client")
     produit = models.ForeignKey(Produit, on_delete=models.CASCADE)
     quantite = models.IntegerField()
     prix_unitaire_fcfa = models.FloatField()
-    prix_initial_fcfa = models.FloatField(null=True, blank=True)  # Prix initial avant modification
-    justification_prix = models.TextField(blank=True)  # Justification si le prix a été modifié
-    nom = models.CharField(max_length=100,default='')
-    prenom = models.CharField(max_length=100,default='')
-    telephone = models.CharField(max_length=100,default='')
+    prix_initial_fcfa = models.FloatField(null=True, blank=True)  # Prix initial avant modif
+    justification_prix = models.TextField(blank=True)             # Justification si prix modifié
+    nom = models.CharField(max_length=100, default="", blank=True)
+    prenom = models.CharField(max_length=100, default="", blank=True)
+    telephone = models.CharField(max_length=100, default="", blank=True)
+
+    class Meta:
+        verbose_name = "Commande client"
+        verbose_name_plural = "Commandes client"
 
     @property
     def total(self):
         return self.quantite * self.prix_unitaire_fcfa
 
+    def __str__(self):
+        return f"CmdClient {self.produit} x{self.quantite} (Facture #{self.facture_id})"
+
+
 class CommandePartenaire(models.Model):
-    facture = models.ForeignKey(Facture, on_delete=models.CASCADE)
+    facture = models.ForeignKey(Facture, on_delete=models.CASCADE, related_name="commandes_partenaire")
     partenaire = models.ForeignKey(Partenaire, on_delete=models.CASCADE)
     produit = models.ForeignKey(Produit, on_delete=models.CASCADE)
     quantite = models.IntegerField()
     prix_unitaire_fcfa = models.FloatField()
-    prix_initial_fcfa = models.FloatField(null=True, blank=True)  # Prix initial avant modification
-    justification_prix = models.TextField(blank=True)  # Justification si le prix a été modifié
+    prix_initial_fcfa = models.FloatField(null=True, blank=True)
+    justification_prix = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Commande partenaire"
+        verbose_name_plural = "Commandes partenaire"
 
     @property
     def total(self):
         return self.quantite * self.prix_unitaire_fcfa
 
+    def __str__(self):
+        return f"CmdPart {self.partenaire} {self.produit} x{self.quantite}"
+
+
 class Versement(models.Model):
-    facture = models.ForeignKey(Facture, on_delete=models.CASCADE)
+    facture = models.ForeignKey(Facture, on_delete=models.CASCADE, related_name="versements")
     montant = models.FloatField()
     date_versement = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = "Versement"
+        verbose_name_plural = "Versements"
+        ordering = ["-date_versement"]
+
+    def __str__(self):
+        return f"Versement {self.montant} (Facture #{self.facture_id})"
+
+
 class HistoriqueStock(models.Model):
-    produit = models.ForeignKey(Produit, on_delete=models.CASCADE)
+    produit = models.ForeignKey(Produit, on_delete=models.CASCADE, related_name="historiques_stock")
     variation = models.IntegerField()
     motif = models.CharField(max_length=100)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     date = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name = "Historique de stock"
+        verbose_name_plural = "Historiques de stock"
+        ordering = ["-date"]
+
+    def __str__(self):
+        return f"{self.produit} ({self.variation:+d}) - {self.motif}"
+
+
+# ---------------------------
+# Journal d’audit
+# ---------------------------
 
 class Journal(models.Model):
     utilisateur = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -213,11 +299,15 @@ class Journal(models.Model):
         return f"{self.utilisateur.username} - {self.type_operation} - {self.date_operation}"
 
     def save(self, *args, **kwargs):
-        # auto_now_add remplit déjà à la création ; garde ce fallback si un objet est créé manuellement avec date vide.
+        # auto_now_add gère la 1re valeur ; fallback si nécessaire
         if not self.date_operation:
             self.date_operation = timezone.now()
         super().save(*args, **kwargs)
 
+
+# ---------------------------
+# Dettes & Paiements
+# ---------------------------
 
 class Debt(models.Model):
     STATUS_PENDING = "pending"

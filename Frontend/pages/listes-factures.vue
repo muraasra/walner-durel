@@ -21,6 +21,14 @@ interface ProduitFacture {
   quantite: number;
 }
 
+// Typage du tableau de versements pour éviter les erreurs TS
+interface Versement {
+  id: number;
+  facture: number;
+  montant: number;
+  date_versement: string;
+}
+
 const factures = ref<Facture[]>([]);
 const factureSelectionnee = ref<Facture | null>(null);
 const showModal = ref(false);
@@ -31,13 +39,27 @@ const totalGlobal = computed(() =>
   factures.value.reduce((acc, curr) => acc + (curr.total || 0), 0)
 );
 
-const totalVerse = computed(() =>
-  factures.value.reduce((acc, curr) => acc + (curr.verse || 0), 0)
-);
+// Remplace le calcul du montant déjà versé et du reste à verser par une récupération des versements depuis l'API
+const versements = ref<Versement[]>([]);
 
-const totalReste = computed(() =>
-  factures.value.reduce((acc, curr) => acc + (curr.reste || 0), 0)
-);
+async function loadVersements() {
+  const { data, error } = await useApi('http://127.0.0.1:8000/api/versements/', { method: 'GET', server: false });
+  versements.value = Array.isArray(data.value) ? data.value : [];
+}
+
+function getVersementPourFacture(factureId: number) {
+  return versements.value
+    .filter(v => v.facture === factureId)
+    .reduce((sum, v) => sum + v.montant, 0);
+}
+
+const totalVerse = computed(() => {
+  return factures.value.reduce((sum, facture) => sum + getVersementPourFacture(facture.id), 0);
+});
+
+const totalReste = computed(() => {
+  return factures.value.reduce((sum, facture) => sum + (facture.total - getVersementPourFacture(facture.id)), 0);
+});
 
 // Pour le versement
 const facturePourVersement = ref<Facture | null>(null);
@@ -122,72 +144,50 @@ async function validerVersement() {
   }
   errorMessage.value = null;
 
-  // 1. Met à jour le localStorage (si tu utilises toujours localStorage pour les versements)
-  // Note : une solution plus robuste serait de gérer les versements uniquement via le backend
-  setVersement(facturePourVersement.value.id, payment.value);
-
-  // 2. Calcule le nouveau reste et statut (ces valeurs sont basées sur le total versé localement/calculé)
-  const versementsLocauxPourFacture = getVersementPourFacture(facturePourVersement.value.id);
-  const nouveauReste = facturePourVersement.value.total - versementsLocauxPourFacture;
-  // Utilise les valeurs de statut exactes attendues par ton backend
-  const nouveauStatut = nouveauReste <= 0 ? 'payé' : 'encours'; // Utilise <= 0 pour 'payé' si le reste peut être négatif
-
-  // 3. Met à jour le backend - ENVOIE SEULEMENT LES CHAMPS À MODIFIER
+  // ENREGISTRER LE VERSEMENT EN BASE (API)
   try {
-      const { data, error: apiError } = await useApi(`http://127.0.0.1:8000/api/factures/${facturePourVersement.value.id}/`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          // N'envoie que les champs qui sont censés être modifiables via PATCH
-          reste: nouveauReste,
-          status: nouveauStatut,
-          // created_by et boutique ne devraient probablement pas être modifiés ici
-          // Si ton backend les attend, tu devras les inclure, mais c'est moins propre pour un PATCH
-        })
-      });
-
-      if (!apiError.value) {
-          // Succès de la mise à jour
-          await loadFactures(); // Recharge les factures pour mettre à jour la liste affichée
-          showVersementModal.value = false;
-          // Optionnel: afficher un message de succès
-          // success("Versement enregistré avec succès et statut mis à jour !");
-
-      } else {
-          console.error("Erreur lors de la mise à jour de la facture via PATCH:", apiError.value);
-          // Affiche l'erreur de l'API à l'utilisateur si possible
-          errorMessage.value = `Erreur: ${apiError.value.message || 'Impossible de mettre à jour la facture.'}`;
-          // Si l'erreur 400 contient des détails (ex: validation formelle), tu peux essayer de les afficher
-          if (apiError.value.data) {
-               console.error("Détails de l'erreur API:", apiError.value.data);
-              // Afficher des détails spécifiques si data est un objet avec des messages d'erreur
-              if (typeof apiError.value.data === 'object') {
-                  errorMessage.value += " Détails: " + Object.values(apiError.value.data).flat().join(', ');
-              }
-          }
+    const { data: versement, error: versementError } = await useApi('http://127.0.0.1:8000/api/versements/', {
+      method: 'POST',
+      body: {
+        facture: facturePourVersement.value.id,
+        montant: payment.value
+      },
+      server: false
+    });
+    if (versementError.value) {
+      errorMessage.value = `Erreur API versement: ${versementError.value.message || 'Impossible d\'enregistrer le versement.'}`;
+      return;
+    }
+    // Met à jour le reste et le statut de la facture
+    const nouveauReste = facturePourVersement.value.reste - payment.value;
+    const nouveauStatut = nouveauReste <= 0 ? 'payé' : 'encours';
+    const { data, error: apiError } = await useApi(`http://127.0.0.1:8000/api/factures/${facturePourVersement.value.id}/`, {
+      method: 'PATCH',
+      body: {
+        reste: nouveauReste,
+        status: nouveauStatut
+      },
+      server: false
+    });
+    if (!apiError.value) {
+      await loadFactures();
+      showVersementModal.value = false;
+    } else {
+      errorMessage.value = `Erreur: ${apiError.value.message || 'Impossible de mettre à jour la facture.'}`;
+      if (apiError.value.data) {
+        if (typeof apiError.value.data === 'object') {
+          errorMessage.value += ' Détails: ' + Object.values(apiError.value.data).flat().join(', ');
+        }
       }
+    }
   } catch (err) {
-       console.error("Erreur inattendue lors de l'appel API PATCH:", err);
-       errorMessage.value = `Une erreur inattendue est survenue: ${err.message}`;
+    errorMessage.value = `Une erreur inattendue est survenue: ${(err as Error).message}`;
   }
-}
-
-function getVersements() {
-  return JSON.parse(localStorage.getItem('versements') || '{}');
-}
-
-function setVersement(factureId: number, montant: number) {
-  const versements = getVersements();
-  versements[factureId] = (versements[factureId] || 0) + montant;
-  localStorage.setItem('versements', JSON.stringify(versements));
-}
-
-function getVersementPourFacture(factureId: number) {
-  const versements = getVersements();
-  return versements[factureId] || 0;
 }
 
 onMounted(() => {
   loadFactures();
+  loadVersements();
 });
 </script>
 
@@ -291,5 +291,5 @@ onMounted(() => {
     </UModal>
   </section>
 </template>
-  
+
 

@@ -116,20 +116,26 @@ const totalProduitsFiltres = computed(() => {
     </div>
 
     <!-- Tableau -->
-    <div class="shadow-lg border rounded-md dark:border-gray-600 dark:shadow-gray-800">
+    <div class="shadow border rounded-xl bg-white">
       <UTable
         :rows="lignesFiltrees"
         :columns="colonnes"
-        class="w-[270px] sm:w-[320px] md:w-[490px] lg:w-full overflow-x-auto"
+        class="min-w-full text-sm border-separate border-spacing-0"
+        :thead-class="'bg-gray-50 text-base font-semibold text-gray-700'"
+        :row-class="(row: any, rowIndex: number) => rowIndex % 2 === 0 ? 'bg-white' : 'bg-gray-50 hover:bg-gray-100 transition'"
       >
-        <!-- Prix personnalisé -->
         <template #prix-data="{ row }">
-          <span>{{ row.prix }} FCFA</span>
+          <span class="font-semibold text-gray-900">{{ row.prix }} FCFA</span>
+        </template>
+        <template #statut-data="{ row }">
+          <span :class="row.statut ? 'inline-block px-3 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-700' : 'inline-block px-3 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-700'">
+            {{ row.statut ? 'Actif' : 'Inactif' }}
+          </span>
         </template>
       </UTable>
 
       <!-- Pagination -->
-      <div class="flex justify-end px-3 py-3.5 border-t border-gray-200 dark:border-gray-700">
+      <div class="flex justify-end px-3 py-3.5 border-t border-gray-200">
         <UPagination
           :active-button="{ variant: 'outline' }"
           :inactive-button="{ color: 'blue' }"

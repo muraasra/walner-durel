@@ -1,9 +1,10 @@
-    @echo off
-    REM Change directory to your frontend project
-    cd /d C:\WALNER\walner-durel\Frontend\
+@echo off
+cd /d "C:\WALNER\walner-durel\Frontend" || (echo Dossier introuvable & pause & exit /b 1)
 
-    REM Restore PM2 processes from saved list
-    pm2 resurrect
+set CHOKIDAR_USEPOLLING=0
+:: Nitro (Nuxt 3) lit surtout ces variables:
+set NITRO_HOST=localhost
+set NITRO_PORT=3000
 
-    REM Optional: Keep window open to see output if run manually for testing
-    REM pause
+:: On force aussi via les flags (fiable sous Windows)
+call npx nuxi dev --host localhost --port 3000

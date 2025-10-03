@@ -1,31 +1,27 @@
+
+
+
 // composables/useApi.ts
-import { useFetch } from '#app'
 import { useAuthStore } from '@/stores/auth'
 
-export async function useApi<T = unknown>(url: string, options = {}) {
+export async function useApi<T = unknown>(path: string, options: any = {}) {
+  const { public: { apiBase } } = useRuntimeConfig()
   const auth = useAuthStore()
-  
+  const url = path.startsWith('http') ? path : `${apiBase}${path.startsWith('/') ? path : '/' + path}`
+
   try {
-    const { data, error } = await useFetch<T>(url, {
+    const data = await $fetch<T>(url, {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
-        ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {})
-      },
-      ...options,
-      onRequestError({ response }) {
-        if (response?.status === 401) {
-          auth.logout()
-          navigateTo('/login')
-        }
+        ...(auth.token ? { Authorization: `Bearer ${auth.token}` } : {}),
+        ...(options.headers || {})
       }
     })
-
-    return { data, error }
-  } catch (e) {
-    console.error('API Error:', e)
-    return { 
-      data: ref(null),
-      error: ref(e instanceof Error ? e : new Error('Une erreur est survenue'))
-    }
+    return { data: ref(data as T), error: ref(null) }
+  } catch (err: any) {
+    // err.data = payload d’erreur DRF (ex: { boutique: ["This field is required."] })
+    console.error('API Error:', err?.data || err)
+    return { data: ref(null), error: ref(err?.data || err) }
   }
 }
